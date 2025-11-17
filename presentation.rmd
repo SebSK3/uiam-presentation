@@ -6,12 +6,13 @@ header-includes:
   - \usepackage{etoolbox}
   - \usepackage{minted}
   - \usepackage{chronology}
+  - \usepackage{booktabs}
+  - \usepackage{threeparttable}
   - \usemintedstyle{vs}
-  - \usepackage[dvipsnames]{xcolor}
-  - \usetikzlibrary{calligraphy, calc, arrows.meta, intersections, patterns, positioning, shapes.misc, fadings, through,decorations.pathreplacing}
-  - \setbeamersize{text margin left=5mm,text margin right=5mm} 
-#  - \setbeameroption{show only notes}
-#  - \setbeameroption{show notes on second screen=right}
+  - \usepackage[table]{xcolor}
+  - \usetikzlibrary{arrows.meta}
+  - \usetikzlibrary{decorations.pathreplacing,calligraphy}
+
 author:
   - "Jakub Jędrzejczyk"
   - "Sebastian Kwaśniak"
