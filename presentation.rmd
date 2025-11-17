@@ -228,3 +228,87 @@ Wprowadzenie do Kubernetes
 \caption{Architektura Kubernetes}
 \label{fig:kubernetes-architecture}
 \end{figure}
+
+# Architektura Jitsi
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{res/jitsi-architecture.png}
+\caption{Architektura Jitsi}
+\label{fig:jitsi-architecture}
+\end{figure}
+
+# Skalowanie wertykalne
+
+- Zwiększenie zasobów CPU, RAM, szybkości dysków (SSD).
+- Poprawa odporności na duże obciążenie (np. duże konferencje).
+
+# Skalowanie wertykalne - RAM i CPU
+
+- jvb zużywa dużą ilość CPU i RAM.
+- Nie ustawiać limitu CPU, aby uniknąć CPU throttle.
+- W `values.yaml` można ustawić resources dla:
+  - web, jvb, jibri, jicofo, jigasi, transcriber.
+
+  ```yaml
+  resources:
+    requests:
+      cpu: [żądana-ilość-cpu]
+      memory: [żądana-ilość-pamięci]
+    limits:
+      memory:  [żądany-limit-pamięci]
+  ```
+
+# Skalowanie wertykalne - pamięć trwała
+
+- Możliwość zmiany typu dysku (HDD/SSD) i ilości pamięci dla jibri i transcriber:
+
+  ```yaml
+  persistence:
+    enabled: true
+    size: [żądana-ilość-pamięci-trwałej]
+    storageClassName: [nazwa-StorageClass]
+  ```
+
+- `StorageClass` to obiekt K8S, który definiuje m.in. typ pamięci trwałej (HDD/SSD).
+
+# Skalowanie horyzontalne
+
+- Kiedyś oznaczało dodanie wirtualnych maszyn ręcznie.
+- Teraz wystarczy podać żądaną ilość `Pod`.
+- Możliwe automatyczne skalowanie.
+
+# Skalowanie horyzontalne - repliki
+
+- Szczególnie ważne dla jvb (load balancing przez jicofo).
+- Zwiększenie liczby replik komponentów:
+  - web, jvb, jibri, jicofo, jigasi, transcriber.
+
+  ```yaml
+  replicaCount: [ilość-replik]
+  ```
+
+# Skalowanie horyzontalne - automatyczne skalowanie
+
+- Możliwość automatycznego skalowania (HPA):
+
+  ```yaml
+  apiVersion: autoscaling/v2
+  kind: HorizontalPodAutoscaler
+  metadata:
+    name: jvb-autoscaler
+    namespace: jitsi
+  spec:
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: jvb
+    minReplicas: 2
+    maxReplicas: 10
+  ```
+
+# Konfiguracja wydajnościowa
+
+- Ustawienia Jitsi wpływające na jakość rozmów:
+  - bit rate (maksymalna przepływność), SSRC, simulcast.
+- Możliwość konfiguracji przez zmienne środowiskowe lub `ConfigMap`.
