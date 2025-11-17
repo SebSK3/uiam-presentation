@@ -6,13 +6,11 @@ header-includes:
   - \usepackage{etoolbox}
   - \usepackage{minted}
   - \usepackage{chronology}
-  - \usepackage{booktabs}
-  - \usepackage{threeparttable}
   - \usemintedstyle{vs}
   - \usepackage[table]{xcolor}
-  - \usetikzlibrary{arrows.meta}
-  - \usetikzlibrary{decorations.pathreplacing,calligraphy}
-
+  - \usepackage[dvipsnames]{xcolor}
+  - \usetikzlibrary{calligraphy, calc, arrows.meta, intersections, patterns, positioning, shapes.misc, fadings, through,decorations.pathreplacing}
+  - \setbeamersize{text margin left=5mm,text margin right=5mm} 
 author:
   - "Jakub Jędrzejczyk"
   - "Sebastian Kwaśniak"
@@ -238,6 +236,43 @@ Wprowadzenie do Kubernetes
 \caption{Architektura Jitsi}
 \label{fig:jitsi-architecture}
 \end{figure}
+
+# Wymagania (bezpiecznego) jitsi
+
+- Odblokowanie portów:
+  - **443** (TCP) - HTTPS + Bosh (Bi-directional-streams Over Synchronous HTTP) + Secure Websockets (Sygnalizacja)
+  - **10000** (UDP) - Wysyłanie mediów (dźwięk, wideo)
+- Certyfikat SSL (np. Let's Encrypt) dla bezpiecznego połączenia
+- (Potencjalnie) serwer STUN / TURN (np. coturn) do obsługi NAT traversal
+
+# Klaster w sieci prywatnej
+
+- Pozytywy:
+  - Większe Bezpieczeństwo
+- Negatywy:
+  - Nie ma publicznego adresu IP
+  - Musimy więc przekierować ruch z zewnątrz do klastra
+
+# Rozwiązanie: VPNy - Pangolin
+
+- Otwartoźródłowe reverse-proxy replikujące funkcjonalność np. Cloudflare Tunnels ale na własnym sprzęcie
+- Umożliwia bezpieczne wystawienie usług z sieci prywatnej do internetu
+- Oparty na znanych i lubianych komponentach (Traefik, WireGuard, Let's Encrypt)
+- Składa się z kilku komponentów, głównie:
+  - **Pangolin** - dashboard zarządzania, system autentykacji
+  - **Gerbil** - zarządzanie połączeniami WireGuard
+  - **Newt** - lekki agent uruchamiany na serwerze, tworzy tunel WireGuard do Gerbila
+- Niewielki problem: działa świetnie z HTTPS, gorzej z czystym TCP/UDP
+
+# Rozwiązanie: VPNy - Tailscale
+
+- Komercyjne rozwiązanie VPN oparte na WireGuard
+- Banalne dodanie nowych urządzeń do sieci VPN
+- Obsługuje granularny dostęp (np. udostępnianie tylko jednego podu w K8s)
+
+# Plan realizacji 
+
+![Realizacja połączenia sieciowego](./res/image.png)
 
 # Skalowanie wertykalne
 
