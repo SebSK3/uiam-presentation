@@ -1,0 +1,173 @@
+---
+title: "Implementacja i testy skalowalności systemu wideokonferencyjnego"
+header-includes:
+  - \usepackage{inconsolata}
+  - \usepackage{tikz}
+  - \usepackage{etoolbox}
+  - \usepackage{minted}
+  - \usepackage{chronology}
+  - \usemintedstyle{vs}
+  - \usepackage[dvipsnames]{xcolor}
+  - \usetikzlibrary{calligraphy, calc, arrows.meta, intersections, patterns, positioning, shapes.misc, fadings, through,decorations.pathreplacing}
+  - \setbeamersize{text margin left=5mm,text margin right=5mm} 
+#  - \setbeameroption{show only notes}
+#  - \setbeameroption{show notes on second screen=right}
+author:
+  - "Jakub Jędrzejczyk"
+  - "Sebastian Kwaśniak"
+  - "Anna Berkowska"
+date: "`r Sys.Date()`"
+output:
+  beamer_presentation:
+    theme: "Arguelles"
+    latex_engine: lualatex
+    includes:
+      in_header: columns.tex
+fontsize: 12pt
+mainfont: "EBGaramond"
+lang: pl
+# bibliography: bibliography.bib
+nocite: '@*'
+csl: vancouver.csl
+---
+
+# {.plain .standout}
+
+\centering
+Wprowadzenie do Kubernetes
+
+::: notes
+.
+:::
+
+# Czym jest Kubernetes?
+
+- System orkiestracji kontenerów open-source.
+- Umożliwia automatyczne wdrażanie, skalowanie i zarządzanie aplikacjami kontenerowymi.
+- Początkowo opracowany przez Google, obecnie rozwijany przez Cloud Native Computing Foundation (CNCF).
+
+# Architektura Kubernetes
+
+- **Master Node** – zarządza klastrem:
+  - kube-apiserver
+  - etcd
+  - kube-scheduler
+  - kube-controller-manager
+- **Worker Nodes** – uruchamiają kontenery:
+  - kubelet
+  - kube-proxy
+  - Container Runtime (np. containerd)
+
+# Podstawowe obiekty
+
+1. **Pod** – najmniejsza jednostka w Kubernetes, może zawierać jeden lub więcej kontenerów.
+2. **Service** – stały punkt dostępu do Podów; definiuje sposób komunikacji wewnątrz klastra.
+3. **Deployment** – zarządza replikacją i aktualizacją Podów.
+4. **ConfigMap** i **Secret** – przechowują konfiguracje i dane poufne.
+
+# Skalowanie i samonaprawianie
+
+- Kubernetes automatycznie przywraca niedziałające Pody.
+- HPA (Horizontal Pod Autoscaler) skalują liczbę replik na podstawie obciążenia CPU, pamięci lub niestandardowych metryk.
+- Rolling updates – aktualizacje aplikacji bez przestojów.
+
+# Sieć w Kubernetes
+
+- Każdy Pod ma własny adres IP w obrębie klastra.
+- Komunikacja realizowana przez CNI (Container Network Interface).
+- Przykładowe implementacje: Calico, Flannel, Cilium.
+
+# Architektura Kubernetes
+
+\begin{figure}[hbt!]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tikzpicture}
+  % Klaster
+  \node[draw, rectangle, minimum width=12cm, minimum height=10cm] (cluster) {};
+  \node at (cluster.north) [yshift=2mm] {Klaster} {};
+
+  \node[draw, rectangle, minimum width=2cm, minimum height=1cm, right=of cluster] (cloud) {API Dostawcy Chmury};
+
+  % --- Control plane start ---
+  \node[draw, rectangle, minimum width=5.5cm, minimum height=9cm, anchor=west] at ([xshift=5pt]cluster.west) (control-plane) {};
+  \node at (control-plane.north) [yshift=2mm] {\small Warstwa Sterowania} {};
+  
+  \node[draw, rectangle, fill=blue!30, minimum width=3cm, minimum height=1cm, anchor=north] at ([yshift=-5pt]control-plane.north) (cloud-controller) {cloud-controller-manager};
+  
+  
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=east] at ([yshift=25pt, xshift=-25pt]control-plane.center) (etcd) {etcd};
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=west] at ([yshift=25pt, xshift=-5pt]control-plane.center) (kube-api-server) {kube-api-server};
+
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=south] at ([yshift=50pt,xshift=-45pt]control-plane.south) (scheduler) {scheduler};
+  \node at (scheduler.south) [yshift=-5pt] {\scriptsize kube-scheduler} {};
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=south] at ([yshift=50pt,xshift=25pt]control-plane.south) (controller-manager) {controller manager};
+  \node at (controller-manager.south) [yshift=-5pt] {\scriptsize kube-controller-manager} {};
+
+  \draw[<->]
+    (cloud-controller.south) 
+    -- ++(0,-1)
+    -- ++(1.25,0)
+    -- (kube-api-server.north);
+
+  \draw[densely dotted]
+    (cloud.north)
+    -- ++(0, 3.3)
+    -- (cloud-controller.east);
+
+  \draw[->]
+    (kube-api-server.west)
+    -- (etcd.east);
+
+  \draw[->]
+    (scheduler.north)
+    -- ([xshift=-10pt]kube-api-server.south);
+    
+  \draw[->]
+    (controller-manager.north)
+    -- ([xshift=-5pt]kube-api-server.south);
+  % --- Control plane end ---
+
+  % --- Node start ---
+  \node[draw, rectangle, minimum width=5cm, minimum height=6cm, anchor=east] at ([xshift=-10pt,yshift=-42.5pt]cluster.east) (node) {};
+  \node at (node.north) [yshift=2mm] {\small Węzeł Roboczy} {};
+
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=north] at ([xshift=-30pt,yshift=-25pt]node.north) (kubelet) {kubelet};
+  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=north] at ([xshift=30pt,yshift=-25pt]node.north) (kube-proxy) {kube-proxy};
+
+  % --- CRI start ---
+  \node[draw, rectangle, minimum width=3cm, minimum height=3cm, anchor=south] at ([yshift=5pt]node.south) (cri) {};
+  \node at (cri.north) [yshift=-5pt] {\small CRI} {};
+
+  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm, anchor=north] at ([yshift=-10pt,xshift=-10pt]cri.center) (pod1) {pod};
+  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm] at ([yshift=10pt,xshift=15pt]cri.center) (pod2) {pod};
+  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm] at ([yshift=10pt,xshift=-20pt]cri.center) (pod3) {pod};
+  % --- CRI end ---
+  \draw[->]
+    (kubelet.north) 
+    -- ++(0,0.25)
+    -- (kube-api-server.east);
+
+  \draw[densely dotted]
+    (kube-proxy.north)
+    -- ++(0,0.25)
+    -- (kube-api-server.east);
+
+  \draw[->]
+    (kubelet.south) 
+    -- ++(0,-0.25)
+    -- ++(1.05,0)
+    -- (cri.north);
+
+  \draw[->]
+    (kube-proxy.south) 
+    -- ++(0,-0.25)
+    -- ++(-1.06,0)
+    -- (cri.north);
+   % --- Node end ---
+
+\end{tikzpicture}
+}
+\caption{Architektura Kubernetes}
+\label{fig:kubernetes-architecture}
+\end{figure}
