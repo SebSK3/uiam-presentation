@@ -33,318 +33,59 @@ csl: vancouver.csl
 # {.plain .standout}
 
 \centering
-Wprowadzenie do Kubernetes
+Przetestowanie skalowania
 
-::: notes
-.
-:::
+# Szybkie przypomnienie
 
-# Czym jest Kubernetes?
+* Master Node - maszyna której rolą jest zarządzanie Kubernetes
+* Worker Node - maszyna której rolą jest trzymać aplikacje (w podach) użytkownika
 
-- System orkiestracji kontenerów open-source.
-- Umożliwia automatyczne wdrażanie, skalowanie i zarządzanie aplikacjami kontenerowymi.
-- Początkowo opracowany przez Google, obecnie rozwijany przez Cloud Native Computing Foundation (CNCF).
+# Kubernetes
 
-# Architektura Kubernetes
+Co się okazuje:
 
-- **Master Node** – zarządza klastrem:
-  - kube-apiserver
-  - etcd
-  - kube-scheduler
-  - kube-controller-manager
-- **Worker Nodes** – uruchamiają kontenery:
-  - kubelet
-  - kube-proxy
-  - Container Runtime (np. containerd)
+* Master nie obsługuje ruchu użytkowników.
+* Master nie uruchamia Podów aplikacyjnych.
+* Master nie streamuje danych, nie przetwarza requestów HTTP, nie robi downloadów/uploadów.
 
-# Podstawowe obiekty
+# Kubernetes 2
 
-1. **Pod** – najmniejsza jednostka w Kubernetes, może zawierać jeden lub więcej kontenerów.
-2. **Service** – stały punkt dostępu do Podów; definiuje sposób komunikacji wewnątrz klastra.
-3. **Deployment** – zarządza replikacją i aktualizacją Podów.
-4. **ConfigMap** i **Secret** – przechowują konfiguracje i dane poufne.
+Nawet jeśli master ma wolny internet (np. 1 Mbps), nie wpływa to na:
 
-# Skalowanie i samonaprawianie
+* prędkość odpowiedzi aplikacji,
+* throughput,
+* czas obsługi zapytań HTTP/Websocket/GRPC,
+* szybkość pobierania danych przez aplikację.
 
-- Kubernetes automatycznie przywraca niedziałające Pody.
-- HPA (Horizontal Pod Autoscaler) skalują liczbę replik na podstawie obciążenia CPU, pamięci lub niestandardowych metryk.
-- Rolling updates – aktualizacje aplikacji bez przestojów.
+# Kubernetes 3
 
-# Sieć w Kubernetes
+To w trakcie stress testowania jitsi, gdy master ma 128kbit/s:
 
-- Każdy Pod ma własny adres IP w obrębie klastra.
-- Komunikacja realizowana przez CNI (Container Network Interface).
-- Przykładowe implementacje: Calico, Flannel, Cilium.
+![](./res/bitrateupload10os5str.png)
 
-# Sieć w Kubernetes i znaczenie pluginów sieciowych
+# Czemu nie uzylismy narzedzi zewnetrznych
 
-- Kubernetes wymaga warstwy sieciowej, aby umożliwić komunikację między Podami, Service'ami i zewnętrznym światem.
-- Plugin sieciowy (CNI) implementuje tę warstwę i odpowiada za:
-  - Przydzielanie adresów IP Podom.
-  - Routing ruchu sieciowego w klastrze.
-  - Polityki bezpieczeństwa sieciowej (Network Policies).
+Webrtcperf dla jitsi jest całkowicie zepsute.
 
-# Wymagania API Container Network Interface (CNI)
+# No to teraz jak przetestować jitsi...
 
-- CNI definiuje prosty i elastyczny zestaw API potrzebnych do zarządzania siecią kontenerów.
-- Podstawowe API, które każdy CNI plugin musi implementować to:
-  - **ADD**: Tworzy i konfiguruje interfejs sieciowy dla kontenera (Pod), przydziela adres IP i ustawia routing.
-  - **DEL**: Usuwa interfejs sieciowy oraz zwalnia zasoby sieciowe po usunięciu kontenera.
-  - **CHECK**: (opcjonalne) Sprawdza czy konfiguracja sieci dla kontenera jest prawidłowa i działa.
-  
-# Popularne pluginy sieciowe
+Jitsi bardzo dobrze się skaluje. Według oficjalnych pomiarów:
 
-| Plugin     | Zalety                        | Zastosowania                    |
-|------------|------------------------------|--------------------------------|
-| Calico     | Zaawansowane polityki sieci, wysoka skalowalność | Bezpieczeństwo, chmury hybrydowe |
-| Flannel    | Prosty setup, minimalna konfiguracja | Małe i średnie klastry         |
-| Cilium     | Wykorzystuje eBPF, dobre do mikroserwisów | Zaawansowane polityki, observability |
-| Weave Net  | Łatwy w instalacji, sieć nakładkowa | Łatwy start, małe środowiska   |
+* Dla 1056 strumieni wideo z bitrate 550mbit/s zużycie CPU to tylko 20% przy czterordzeniowym procesorze.
+* Dla 1056 strumieni wideo Zużycie RAMu nie przekroczyło 1.5GB
 
-# Wpływ wyboru pluginu sieciowego na klaster
+# Czemu tak się dzieje?
 
-- Wydajność komunikacji między Podami zależy od implementacji pluginu.
-- Ochrona i kontrola ruchu sieciowego realizowana przez polityki sieciowe.
-- Kompatybilność z infrastrukturą chmurową i sprzętową.
-- Możliwość debugowania i monitorowania ruchu sieciowego.
+Jitsi Videobridge jest tylko przekaźnikiem, bez żadnego transkodowania. Nie tworzy skomplikowanych reguł, ani nie weryfikuje nic.
 
-# Container Runtime Interface (CRI) w Kubernetes
+Działa trochę jak router.
 
-- CRI to standardowy interfejs API gRPC umożliwiający komunikację między kubeletem (agentem na węźle) a środowiskiem uruchomieniowym kontenerów.
-- Pozwala Kubernetes na obsługę różnych środowisk uruchomieniowych kontenerów (np. containerd, CRI-O) bez potrzeby zmian w klastrze.
-- Umożliwia elastyczność i unika uzależnienia od jednego dostawcy środowiska kontenerowego.
+# {.plain .standout}
 
-# Jak działa CRI?
-
-- Kubelet działa jako klient, wywołując metody CRI do zarządzania cyklem życia kontenerów na węźle.
-- CRI dostarcza dwie podstawowe usługi:
-  - **RuntimeService** – zarządza uruchamianiem, zatrzymywaniem i monitorowaniem kontenerów oraz sandboxów Podów.
-  - **ImageService** – zarządza pobieraniem, kasowaniem i zarządzaniem obrazami kontenerów.
-
-# Znaczenie CRI dla Kubernetes
-
-- Separacja odpowiedzialności: Kubernetes operuje na wysokim poziomie, a szczegóły dotyczące uruchamiania kontenerów deleguje do CRI.
-- Ułatwia stosowanie różnych silników kontenerowych zgodnych z CRI.
-- Zapewnia spójność działania klastra niezależnie od konkretnego środowiska uruchomieniowego.
-
-# Przykłady środowisk zgodnych z CRI
-
-- **containerd** – lekki i popularny runtime stworzony pod kątem Kubernetes.
-- **CRI-O** – specjalistyczne środowisko lightweight, zoptymalizowane pod Kubernetes.
-- **Docker (przez shim containerd)** – Kubernetes korzysta z Docker pośrednio przez warstwę CRI.
-
-# Architektura Kubernetes
-
-\begin{figure}[hbt!]
 \centering
-\resizebox{\linewidth}{!}{
-\begin{tikzpicture}
-  % Klaster
-  \node[draw, rectangle, minimum width=12cm, minimum height=10cm] (cluster) {};
-  \node at (cluster.north) [yshift=2mm] {Klaster} {};
+Demo
 
-  \node[draw, rectangle, minimum width=2cm, minimum height=1cm, right=of cluster] (cloud) {API Dostawcy Chmury};
+# {.plain .standout}
 
-  % --- Control plane start ---
-  \node[draw, rectangle, minimum width=5.5cm, minimum height=9cm, anchor=west] at ([xshift=5pt]cluster.west) (control-plane) {};
-  \node at (control-plane.north) [yshift=2mm] {\small Warstwa Sterowania} {};
-  
-  \node[draw, rectangle, fill=blue!30, minimum width=3cm, minimum height=1cm, anchor=north] at ([yshift=-5pt]control-plane.north) (cloud-controller) {cloud-controller-manager};
-  
-  
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=east] at ([yshift=25pt, xshift=-25pt]control-plane.center) (etcd) {etcd};
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=west] at ([yshift=25pt, xshift=-5pt]control-plane.center) (kube-api-server) {kube-api-server};
-
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=south] at ([yshift=50pt,xshift=-45pt]control-plane.south) (scheduler) {scheduler};
-  \node at (scheduler.south) [yshift=-5pt] {\scriptsize kube-scheduler} {};
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=south] at ([yshift=50pt,xshift=25pt]control-plane.south) (controller-manager) {controller manager};
-  \node at (controller-manager.south) [yshift=-5pt] {\scriptsize kube-controller-manager} {};
-
-  \draw[<->]
-    (cloud-controller.south) 
-    -- ++(0,-1)
-    -- ++(1.25,0)
-    -- (kube-api-server.north);
-
-  \draw[densely dotted]
-    (cloud.north)
-    -- ++(0, 3.3)
-    -- (cloud-controller.east);
-
-  \draw[->]
-    (kube-api-server.west)
-    -- (etcd.east);
-
-  \draw[->]
-    (scheduler.north)
-    -- ([xshift=-10pt]kube-api-server.south);
-    
-  \draw[->]
-    (controller-manager.north)
-    -- ([xshift=-5pt]kube-api-server.south);
-  % --- Control plane end ---
-
-  % --- Node start ---
-  \node[draw, rectangle, minimum width=5cm, minimum height=6cm, anchor=east] at ([xshift=-10pt,yshift=-42.5pt]cluster.east) (node) {};
-  \node at (node.north) [yshift=2mm] {\small Węzeł Roboczy} {};
-
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=north] at ([xshift=-30pt,yshift=-25pt]node.north) (kubelet) {kubelet};
-  \node[draw, rectangle, fill=blue!30, minimum width=1.5cm, minimum height=1cm, anchor=north] at ([xshift=30pt,yshift=-25pt]node.north) (kube-proxy) {kube-proxy};
-
-  % --- CRI start ---
-  \node[draw, rectangle, minimum width=3cm, minimum height=3cm, anchor=south] at ([yshift=5pt]node.south) (cri) {};
-  \node at (cri.north) [yshift=-5pt] {\small CRI} {};
-
-  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm, anchor=north] at ([yshift=-10pt,xshift=-10pt]cri.center) (pod1) {pod};
-  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm] at ([yshift=10pt,xshift=15pt]cri.center) (pod2) {pod};
-  \node[draw, rectangle, fill=green!30, minimum width=1cm, minimum height=0.6cm] at ([yshift=10pt,xshift=-20pt]cri.center) (pod3) {pod};
-  % --- CRI end ---
-  \draw[->]
-    (kubelet.north) 
-    -- ++(0,0.25)
-    -- (kube-api-server.east);
-
-  \draw[densely dotted]
-    (kube-proxy.north)
-    -- ++(0,0.25)
-    -- (kube-api-server.east);
-
-  \draw[->]
-    (kubelet.south) 
-    -- ++(0,-0.25)
-    -- ++(1.05,0)
-    -- (cri.north);
-
-  \draw[->]
-    (kube-proxy.south) 
-    -- ++(0,-0.25)
-    -- ++(-1.06,0)
-    -- (cri.north);
-   % --- Node end ---
-
-\end{tikzpicture}
-}
-\caption{Architektura Kubernetes}
-\label{fig:kubernetes-architecture}
-\end{figure}
-
-# Architektura Jitsi
-
-\begin{figure}
 \centering
-\includegraphics[width=0.8\textwidth]{res/jitsi-architecture.png}
-\caption{Architektura Jitsi}
-\label{fig:jitsi-architecture}
-\end{figure}
-
-# Wymagania (bezpiecznego) jitsi
-
-- Odblokowanie portów:
-  - **443** (TCP) - HTTPS + Bosh (Bi-directional-streams Over Synchronous HTTP) + Secure Websockets (Sygnalizacja)
-  - **10000** (UDP) - Wysyłanie mediów (dźwięk, wideo)
-- Certyfikat SSL (np. Let's Encrypt) dla bezpiecznego połączenia
-- (Potencjalnie) serwer STUN / TURN (np. coturn) do obsługi NAT traversal
-
-# Klaster w sieci prywatnej
-
-- Pozytywy:
-  - Większe Bezpieczeństwo
-- Negatywy:
-  - Nie ma publicznego adresu IP
-  - Musimy więc przekierować ruch z zewnątrz do klastra
-
-# Rozwiązanie: VPNy - Pangolin
-
-- Otwartoźródłowe reverse-proxy replikujące funkcjonalność np. Cloudflare Tunnels ale na własnym sprzęcie
-- Umożliwia bezpieczne wystawienie usług z sieci prywatnej do internetu
-- Oparty na znanych i lubianych komponentach (Traefik, WireGuard, Let's Encrypt)
-- Składa się z kilku komponentów, głównie:
-  - **Pangolin** - dashboard zarządzania, system autentykacji
-  - **Gerbil** - zarządzanie połączeniami WireGuard
-  - **Newt** - lekki agent uruchamiany na serwerze, tworzy tunel WireGuard do Gerbila
-- Niewielki problem: działa świetnie z HTTPS, gorzej z czystym TCP/UDP
-
-# Rozwiązanie: VPNy - Tailscale
-
-- Komercyjne rozwiązanie VPN oparte na WireGuard
-- Banalne dodanie nowych urządzeń do sieci VPN
-- Obsługuje granularny dostęp (np. udostępnianie tylko jednego podu w K8s)
-
-# Plan realizacji 
-
-![Realizacja połączenia sieciowego](./res/image.png)
-
-# Skalowanie wertykalne
-
-- Zwiększenie zasobów CPU, RAM, szybkości dysków (SSD).
-- Poprawa odporności na duże obciążenie (np. duże konferencje).
-
-# Skalowanie wertykalne - RAM i CPU
-
-- jvb zużywa dużą ilość CPU i RAM.
-- Nie ustawiać limitu CPU, aby uniknąć CPU throttle.
-- W `values.yaml` można ustawić resources dla:
-  - web, jvb, jibri, jicofo, jigasi, transcriber.
-
-  ```yaml
-  resources:
-    requests:
-      cpu: [żądana-ilość-cpu]
-      memory: [żądana-ilość-pamięci]
-    limits:
-      memory:  [żądany-limit-pamięci]
-  ```
-
-# Skalowanie wertykalne - pamięć trwała
-
-- Możliwość zmiany typu dysku (HDD/SSD) i ilości pamięci dla jibri i transcriber:
-
-  ```yaml
-  persistence:
-    enabled: true
-    size: [żądana-ilość-pamięci-trwałej]
-    storageClassName: [nazwa-StorageClass]
-  ```
-
-- `StorageClass` to obiekt K8S, który definiuje m.in. typ pamięci trwałej (HDD/SSD).
-
-# Skalowanie horyzontalne
-
-- Kiedyś oznaczało dodanie wirtualnych maszyn ręcznie.
-- Teraz wystarczy podać żądaną ilość `Pod`.
-- Możliwe automatyczne skalowanie.
-
-# Skalowanie horyzontalne - repliki
-
-- Szczególnie ważne dla jvb (load balancing przez jicofo).
-- Zwiększenie liczby replik komponentów:
-  - web, jvb, jibri, jicofo, jigasi, transcriber.
-
-  ```yaml
-  replicaCount: [ilość-replik]
-  ```
-
-# Skalowanie horyzontalne - automatyczne skalowanie
-
-- Możliwość automatycznego skalowania (HPA):
-
-  ```yaml
-  apiVersion: autoscaling/v2
-  kind: HorizontalPodAutoscaler
-  metadata:
-    name: jvb-autoscaler
-    namespace: jitsi
-  spec:
-    scaleTargetRef:
-      apiVersion: apps/v1
-      kind: Deployment
-      name: jvb
-    minReplicas: 2
-    maxReplicas: 10
-  ```
-
-# Konfiguracja wydajnościowa
-
-- Ustawienia Jitsi wpływające na jakość rozmów:
-  - bit rate (maksymalna przepływność), SSRC, simulcast.
-- Możliwość konfiguracji przez zmienne środowiskowe lub `ConfigMap`.
+Dziękujemy za uwagę
