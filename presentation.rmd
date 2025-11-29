@@ -33,6 +33,48 @@ csl: vancouver.csl
 # {.plain .standout}
 
 \centering
+Skalowanie jvb
+
+# Co zostało dodane do values.yaml?
+
+* Aby przeskalować jvb, następujące wartości zostały dodane:
+
+```yaml
+jvb:
+  ## Set JVB instance count:
+  replicaCount: 2
+  ## Expose JVB interface port to the outside world
+  #  only on nodes that actually have it:
+  useHostPort: true
+  ## Make every JVB pod announce its Node's external
+  #  IP address and nothing more:
+  useNodeIP: true
+octo:
+  ## Enable OCTO support for both JVB and Jicofo:
+  enabled: true
+```
+
+# OCTO - co to?
+
+- OCTO to mechanizm multi-bridge routing, który pozwala rozproszyć uczestników jednego spotkania między wiele instancji Jitsi Videobridge (jvb).
+- Bez OCTO każde spotkanie musi być obsługiwane przez jeden jvb; gdy osiągnie limit CPU/bitrate - jakość spada.
+- Z OCTO spotkanie może używać kilku jvb jednocześnie.
+
+# Przed skalowaniem jvb
+
+![](./res/k9s-before.png)
+
+# Po skalowaniu jvb
+
+![](./res/k9s-after.png)
+
+# Jak to wygląda w logach jicofo
+
+![](./res/jicofo-logs.png)
+
+# {.plain .standout}
+
+\centering
 Przetestowanie skalowania
 
 # Szybkie przypomnienie
