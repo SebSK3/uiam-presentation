@@ -210,6 +210,11 @@ Działa trochę jak router.
 \centering
 Demo
 
+https://jitsi.google.sex.pl
+
+\resizebox{!}{7cm}{%
+    \includegraphics{./res/qr-code.png}
+}
 # {.plain .standout}
 
 \centering
