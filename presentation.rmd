@@ -33,6 +33,89 @@ csl: vancouver.csl
 # {.plain .standout}
 
 \centering
+Wdrożenie Jitsi
+
+# Konfiguracja Jitsi
+
+![](./res/100-podstawowe-jitsi.png)
+
+# Uruchomienie Jitsi
+
+![](./res/101-secret-do-turna.png)
+![](./res/102-komenda-do-postawienia.png)
+
+# {.plain .standout}
+
+\centering
+Udostępnienie Jitsi bez publicznego adresu IP
+
+# Pangolin - Tworzenie zdalnego dostępu
+
+![](./res/110-tworzenie-site-pangolin.png)
+
+# Pangolin - Uruchomienie zdalnego dostępu
+
+![](./res/111-zapisanie-credentiali.png)
+![](./res/112-newt-values.png)
+![](./res/113-samo-postawienie-newt.png)
+
+# Pangolin - Zdalny Dostęp
+
+![](./res/114-rezultat.png)
+
+# Pangolin - Tworzenie Zasobu
+
+![](./res/115v2-tworzenie-dostepu.png)
+
+# Pangolin - SSL + Wyłączenie SSO
+
+![](./res/117-wylaczenie-sso.png)
+![](./res/116-tls.png)
+
+# Tailscale - Czemu wyłączyć SSO?
+
+![](./res/118-sso.png)
+
+# Tailscale - Pliki konfiguracyjne
+
+![](./res/120-tailscale-secret.png)
+
+# Tailscale - pliki konfiguracyjne cz. 2
+
+![](./res/121-tailscale-rbac.png)
+
+# Tailscale - Pliki konfiguracyjne cz. 3
+
+![](./res/122-tailscale-proxy.png)
+
+# Tailscale - Dlaczego Takie IP?
+
+![](./res/123-dlaczego-takie-ip.png)
+
+# Tailscale - uruchomienie
+
+![](./res/124-samo-postawienie-tailscale.png)
+
+# Tailscale - Przekierowanie z VPS
+
+![](./res/125-rezultat.png)
+![](./res/126-routing-vanguard.png)
+
+# TURN - konfiguracja
+
+![](./res/130-turnconfig.png)
+
+# TURN - docker-compose
+
+![](./res/131-turn-compose.png)
+
+# Efekt - Działające (nierozproszone) Jitsi
+
+![](./res/140-efekt.png)
+
+# {.plain .standout}
+
+\centering
 Skalowanie jvb
 
 # Co zostało dodane do values.yaml?
