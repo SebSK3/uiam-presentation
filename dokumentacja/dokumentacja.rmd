@@ -440,13 +440,33 @@ async function startBot(id) {
 \end{listing}
 
 Zmienialiśmy stałe oraz URL do testowania różnych sytuacji. Aby nie pisać za każdym razem każdych parametrów,
-należy założyć, że każda wideokonferencja to zmieniony zasób w zmiennej `JITSI_URL`, oraz różna liczba uczestników to zmienna `BOT_COUNT-1` (gdzie dodatkowa
+należy założyć, że każda wideokonferencja to zmieniony zasób w zmiennej `JITSI_URL`, oraz różna liczba uczestników to zmienna `BOT_COUNT` (gdzie dodatkowa
 osoba to my jako uczestnik).
 
-## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
+## Scenariusze testowania
 
-> Przy pierwotnym testowaniu wynikło, że musimy zmienić sposób testowania. Nie zawrzemy tutaj naszych potknięć które były po drodze.
+Aby sensownie porównać sprzed i po przeskalowaniu, musimy stwierdzić jakie scenariusze testowania są odpowiednie.
+W każdym ze scenariuszy zostanie przesłany źródłowy strumień wideo w rozdzielczości 1280x720.
+Są to kolejno:
+
+1. 1 konferencja trzech uczestników - testowa konferencja,
+2. 1 konferencja 10 uczestników - przy porównaniu z 1 konferencją i trzema uczestnikami uzyskamy sens wielkości w jakich się poruszamy,
+3. 3 konferencje po 10 uczestników - sprawdzenie możliwości, w przypadku optymalizacji przetestowanie gdzie zostaną umieszczeni użytkownicy końcowi,
+4. 10 konferencji po 3 uczestników - dokładniejsze sprawdzenie umieszczenia.
+
+Odnośnie 3 uczestników, jest to najprostszy sposób na wymuszenie Jitsi aby konferencja nie była p2p, przy testowaniu z jednego źródła. Cały ruch
+wtedy odbywa się bezpośrednio przez JVB.
+
+
+## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
 
 
 
 ## Wyniki oraz spostrzeżenia po optymalizacji za pomocą Octo
+
+# Wnioski
+
+<!--
+TODO: jitsi sie samoskaluje
+TODO: jak kliknie sie w kogos to wysyla z wieksza rozdzielczoscia
+-->
