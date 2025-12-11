@@ -377,8 +377,76 @@ TODO: folissa: scr jak zaimportować
 
 # Testowanie oraz omówienie wyników
 
-Coś tam coś testowaliśmy blabla
+Niefortunnie dla nas, Jitsi bardzo dobrze się skaluje. Według oficjalnych pomiarów:
+
+* Dla 1056 strumieni wideo z bitrate 550mbit/s zużycie CPU to tylko 20% przy czterordzeniowym procesorze,
+* Dla 1056 strumieni wideo zużycie RAMu nie przekroczyło 1.5GB.
+
+Tworzy to problem stworzenia prawdziwego testu, ponieważ nie posiadamy zasobów aby włączyć tyle strumieni z taką przepustowością.
+Nie mniej, spróbowaliśmy zbadać jak najdokładniej co dzieje się, kiedy Jitsi jest obciążone.
+
+Wykorzystaliśmy poniższy skrypt do testowania różnych scenariuszy:
+
+\begin{listing}[H]
+\begin{minted}{js}
+const puppeteer = require('puppeteer');
+const JITSI_URL = 'https://jitsi.google.sex.pl/abc'; 
+const BOT_COUNT = 3; 
+const DURATION_SECONDS = 300; 
+const HEADLESS = false;
+async function startBot(id) {
+    const browser = await puppeteer.launch({
+        headless: HEADLESS ? "new" : false,
+        args: [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--window-size=1280,720'
+        ]
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 720 });
+    try {
+        await page.goto(`${JITSI_URL}`, { waitUntil: 'networkidle0' });
+        try {
+            const nameInputSelector = 'input[placeholder="Enter your name"]'; 
+            await page.waitForSelector(nameInputSelector, { timeout: 5000 });
+            await page.type(nameInputSelector, `Bot-${id}`);
+            const joinButtonSelector = '[data-testid="prejoin.joinMeeting"]';
+            await page.waitForSelector(joinButtonSelector);
+            await page.click(joinButtonSelector);
+        } catch (error) {
+            console.log(`Bot ${id}: No prejoin screen detected (or timed out)`);
+        }
+        await new Promise(r => setTimeout(r, DURATION_SECONDS * 1000));
+    } catch (e) {
+        console.error(`Bot ${id} FAILED:`, e.message);
+    } finally {
+        await browser.close();
+    }
+}
+(async () => {
+    const promises = [];
+    for (let i = 0; i < BOT_COUNT; i++) {
+        promises.push(startBot(i));
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    await Promise.all(promises);
+})();
+
+\end{minted}
+\caption{Skrypt do testowania Jitsi}
+\end{listing}
+
+Zmienialiśmy stałe oraz URL do testowania różnych sytuacji. Aby nie pisać za każdym razem każdych parametrów,
+należy założyć, że każda wideokonferencja to zmieniony zasób w zmiennej `JITSI_URL`, oraz różna liczba uczestników to zmienna `BOT_COUNT-1` (gdzie dodatkowa
+osoba to my jako uczestnik).
 
 ## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
+
+> Przy pierwotnym testowaniu wynikło, że musimy zmienić sposób testowania. Nie zawrzemy tutaj naszych potknięć które były po drodze.
+
+
 
 ## Wyniki oraz spostrzeżenia po optymalizacji za pomocą Octo

@@ -3,3 +3,5 @@
 *.snm
 *.toc
 *.log
+dokumentacja/_minted
+dokumentacja/*.log
