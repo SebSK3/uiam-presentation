@@ -115,9 +115,12 @@ Programy które wdrożymy na klastrze w kontenerach:
 
 Jako, że nie posiadamy publicznego adresu IP, wybraliśmy także następujące narzędzia do udostępnienia Jitsi:
 
-* Tailscale - TODO: doppie: opisać (krótko),
-* Pangolin: TODO: doppie: opisać (krótko).
-TODO: doppie: jak czegos zapomnialem to dodaj pls
+* Pangolin - oparty na WireGuard zestaw aplikacji umożliwiający łatwe udostępnianie usług po HTTP(s),
+* Tailscale - oparty na WireGuard mesh'owy VPN pozwalający na łatwe łączenie urządzeń i tworzenie "wirtualnej sieci" między nimi,
+* Coturn - serwer TURN oraz STUN umożliwiający przekazywanie ruchu multimedialnego przez NATy i firewalle.
+
+Dwa powyższe rozwiązania zostały wybrane ze względu na fakt, iż były już wykorzystywane przez jedną osobę z zespołu.
+TODO: doppie: nie wiem czy serwer z publicznym IP to narzędzie ale też jest potrzebny
 
 Do prostszego dołączenia wielu użytkowników skorzystamy z platformy `node.js` oraz dostępnej na niej biblioteki `puppeteer`.
 
@@ -125,7 +128,24 @@ Do prostszego dołączenia wielu użytkowników skorzystamy z platformy `node.js
 
 ## Sieć
 
-TODO: doppie: opisać tutaj sieć (czemu i co), bez mowienia jak ją postawić (to bedzie dalej)
+Postawienie Jitsi tak, aby było publicznie dostępne, wymaga otwarcia kilku portów (wg. strony: https://meetrix.io/blog/webrtc/jitsi/meet/what-port-your-should-open.html): 443 dla HTTPS, 10000 UDP dla ruchu multimedialnego, oraz 4443 TCP jako alternatywa dla 10000 UDP.
+Port 443, tj. HTTPS, jest niezbędny do części webowej Jitsi, a także do sygnalizacji WebRTC. Port 10000 UDP jest używany do przesyłania strumieni audio i wideo między klientami a serwerem Jitsi Videobridge. Port 4443 TCP służy jako alternatywna ścieżka dla ruchu multimedialnego, gdy port 10000 UDP jest zablokowany lub niedostępny.
+
+Ze względu na ograniczenia otrzymanego środowiska (brak publicznego adresu IP), użyty zostanie serwer jednego z członków zespołu, który posiada publiczny adres IP i już służy do udostępniania usług w sieci publicznej.
+
+Udostępnienie portu 443 jest możliwe dzięki Pangolinowi, który odpowiednio przekieruje ruch wysyłany pod odpowiedni adres URL do klastra Kubernetes.
+Pangolin likwiduje również potrzebę na ręczne zarządzanie certyfikatami TLS dla Jitsi, ponieważ automatycznie generuje i odnawia certyfikaty Let's Encrypt dla skonfigurowanych domen.
+
+W teorii porty 10000 UDP oraz 4443 TCP mogłyby być również przekierowane przez Pangolina, jednakże jego backend (Traefik) wymaga podawania pełnych domen dla reguł routingu, co jest problematyczne w przypadku gdy część aplikacji wymaga adresu IP w formie numerycznej.
+Dotychczasowe doświadczenie związane z udostępnianiem usług na "czystych" TCP / UDP przez Pangolina jest znacznie mniej intuicyjne niż w przypadku HTTP(s).
+Z tego powodu, do przekierowania ruchu multimedialnego zostanie użyty Tailscale, który umożliwia łatwe tworzenie bezpiecznych połączeń VPN między urządzeniami.
+Dzięki Tailscale, można stworzyć dodatkowy kontener który będzie mieć dostęp jedynie do sieci JVB i będzie przekazywać mu ruch multimedialny przychodzący z publicznego serwera.
+Po stronie używanego przez nas serwera z publicznym IP wymagane będzie jedynie dodanie krótkiego wpisu w iptables, który przekieruje ruch z portu 10000 na docelowy adres IP sieci Tailscale poda dołączonego do JVB.
+
+Dodatkowo na samym serwerze z publicznym IP zostanie uruchomiony serwer Coturn, który będzie służył jako serwer STUN/TURN dla Jitsi.
+Jego zadaniem będzie pomoc w nawiązywaniu połączeń WebRTC, szczególnie w sytuacjach gdy klienci znajdują się za NATami lub firewallami.
+Serwer Coturn będzie skonfigurowany do obsługi zarówno protokołu UDP, jak i TCP na standardowym porcie 3478, co zapewni maksymalną kompatybilność z różnymi środowiskami sieciowymi użytkowników końcowych.
+Dzięki temu rozwiązaniu, Jitsi będzie mogło efektywnie obsługiwać połączenia multimedialne nawet w trudnych warunkach sieciowych.
 
 Sieć została zwizualizowana na rysunku \ref{fig:siec}.
 
@@ -207,10 +227,42 @@ Użytkownik, powinien dostosować następujące wartości:
 * `ansible_ssh_pass` - hasło do maszyny,
 * `ansible_ssh_port` - port na którym nasłuchuje SSH na docelowej maszynie.
 
+## coturn
+
+Serwer coturn zostanie uruchomiony na serwerze z publicznym IP, na którym zostaną otwarte porty 3478 UDP oraz 3478 TCP.
+Uruchomienie będzie korzystać z zainstalowanego wcześniej Dockera oraz zmodyfikowanego pliku przykładowego dostępnego na stronie GitHub projektu coturn: https://github.com/coturn/coturn/blob/master/docker/docker-compose-all.yml, widocznego na rysunku \ref{fig:turn-compose}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/131-turn-compose.png}
+\caption{Plik docker compose dla serwera coturn}
+\label{fig:turn-compose}
+\end{figure}
+
+Coturn może korzystać z baz danych do przechowywania użytkowników, jednakże w naszym przypadku skorzystamy z prostszej metody, czyli zdefiniowanie sekretu, którego użytkownik może użyć do uwierzytelnienia się na serwerze.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/130-turnconfig.png}
+\caption{Plik konfiguracyjny serwera coturn}
+\label{fig:turn-config}
+\end{figure}
 
 ## Jitsi
 
-TODO: doppie:
+Po uruchomieniu klastra, posiadając działający `kubectl` oraz `helm`, możemy przejść do wdrożenia Jitsi.
+Ze względu na skorzystanie z serwera coturn, wykorzystany plik `values.yaml` widoczny na rysunku \ref{fig:helm-jitsi} jest większy niż byłby, gdyby takiego serwera nie było.
+Linijki 5 oraz 16-23 mogłyby w takim przypadku zostać usunięte.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/100-podstawowe-jitsi.png}
+\caption{Plik konfiguracyjny Helm dla Jitsi}
+\label{fig:helm-jitsi}
+\end{figure}
+
+Ze względu na konfigurację serwera coturn, która wymaga od użytkownika podania sekretu w celu uwierzytelnienia się, wcześniej wspomniane linijki 16-23 pozwalają serwerowi Jitsi na przekazanie tych danych użytkownikowi, który następnie może ich użyć w celu skorzystania z serwera coturn.
+W teorii możliwe jest wydobycie sekretu z tej komunikacji, jednakże szacujemy że jest to relatywnie małe zagrożenie (niewiele osób wie o istnieniu usługi, jeszcze mniej raczej potrzebuje serwera coturn), więc jest to akceptowalne ryzyko.
 
 ### Udostępnienie Jitsi publicznie
 
