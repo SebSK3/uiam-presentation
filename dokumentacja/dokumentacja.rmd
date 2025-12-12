@@ -449,10 +449,10 @@ Aby sensownie porównać sprzed i po przeskalowaniu, musimy stwierdzić jakie sc
 W każdym ze scenariuszy zostanie przesłany źródłowy strumień wideo w rozdzielczości 1280x720.
 Są to kolejno:
 
-1. 1 konferencja trzech uczestników - testowa konferencja,
+1. 1 konferencja 3 uczestników - testowa konferencja,
 2. 1 konferencja 10 uczestników - przy porównaniu z 1 konferencją i trzema uczestnikami uzyskamy sens wielkości w jakich się poruszamy,
 3. 3 konferencje po 10 uczestników - sprawdzenie możliwości, w przypadku optymalizacji przetestowanie gdzie zostaną umieszczeni użytkownicy końcowi,
-4. 10 konferencji po 3 uczestników - dokładniejsze sprawdzenie umieszczenia.
+4. 10 konferencji po 3 uczestników - do finalnego dokładniejsze sprawdzenia umieszczenia, w wypadku testowania po optymalizacji.
 
 Odnośnie 3 uczestników, jest to najprostszy sposób na wymuszenie Jitsi aby konferencja nie była p2p, przy testowaniu z jednego źródła. Cały ruch
 wtedy odbywa się bezpośrednio przez JVB.
