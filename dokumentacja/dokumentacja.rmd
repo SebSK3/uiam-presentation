@@ -465,7 +465,7 @@ wtedy odbywa się bezpośrednio przez JVB.
 Przed pójściem dalej, warto zaznajomić się z wartościami które nie są oczywiste:
 
 * zużycie CPU - w Kubernetes wartość CPU nie jest podawana w procentach całego serwera, lecz w jednostkach rdzeni logicznych (vCPU lub Core),
-* poziom stresu Videobridge - Aktualny poziom naprężeń na moście, gdzie 0 oznacza brak obciążenia, a 1 pełne wykorzystanie zasobów (chociaż wartości większe niż 1 są dopuszczalne).
+* poziom stresu Videobridge - całkowity obraz jak wykorzystywany jest Videobridge, gdzie 0 oznacza brak obciążenia, a 1 pełne wykorzystanie zasobów (chociaż wartości większe niż 1 są dopuszczalne).
 
 
 ## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
