@@ -10,6 +10,9 @@ header-includes:
   - \usepackage{threeparttable}
   - \usemintedstyle{vs}
   - \usepackage[dvipsnames,table]{xcolor}
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+  - \usepackage{placeins}
   - \usetikzlibrary{arrows.meta}
   - \usetikzlibrary{decorations.pathreplacing,calligraphy}
 author:
@@ -28,7 +31,9 @@ lang: pl
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos = "H", echo = TRUE)
 library(ggplot2)
+library(patchwork)
 library(showtext)
 showtext_auto()
 ```
@@ -457,14 +462,306 @@ Są to kolejno:
 Odnośnie 3 uczestników, jest to najprostszy sposób na wymuszenie Jitsi aby konferencja nie była p2p, przy testowaniu z jednego źródła. Cały ruch
 wtedy odbywa się bezpośrednio przez JVB.
 
+Przed pójściem dalej, warto zaznajomić się z wartościami które nie są oczywiste:
+
+* zużycie CPU - w Kubernetes wartość CPU nie jest podawana w procentach całego serwera, lecz w jednostkach rdzeni logicznych (vCPU lub Core),
+* poziom stresu Videobridge - Aktualny poziom naprężeń na moście, gdzie 0 oznacza brak obciążenia, a 1 pełne wykorzystanie zasobów (chociaż wartości większe niż 1 są dopuszczalne).
+
 
 ## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
 
+```{r plot_enhanced, echo=FALSE}
+plot_enhanced <- function(filename) {
+  if (!file.exists(filename)) {
+    stop(paste("Error: The file", filename, "does not exist."))
+  }
+  df <- read.csv(filename, stringsAsFactors = FALSE)
+  if (ncol(df) < 2) {
+    stop("Error: CSV must have at least 2 columns.")
+  }
+  colnames(df)[1] <- "raw_time"
+  colnames(df)[2] <- "raw_value"
+  df$plot_time <- as.POSIXct(df$raw_time, format = "%Y-%m-%d %H:%M:%S")
+  clean_numeric <- function(x) {
+    if (is.numeric(x)) return(x)
+    val <- as.numeric(sub("^([0-9.]+).*", "\\1", x))
+    if (grepl("Mb/s", x, ignore.case = TRUE)) {
+      val <- val * 1000
+    }
+    val
+  }
+  df$clean_value <- sapply(df$raw_value, clean_numeric)
+  unit_label <- "Wartość" # Default
+  if (is.character(df$raw_value[1])) {
+    detected_unit <- sub("^[0-9.]+\\s*", "", df$raw_value[1])
+    if (nchar(detected_unit) > 0) {
+      unit_label <- detected_unit
+    }
+  }
+  p <- ggplot(df, aes(x = plot_time, y = clean_value)) +
+    geom_line(color = "#E74C3C", linewidth = 1) +
+    geom_point(color = "#C0392B", size = 2) +
+    scale_x_datetime(date_labels = "%H:%M", date_breaks = "10 min") +
+    labs(
+      x = "Time",
+      y = unit_label # Uses the detected unit (e.g., "mib")
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  return(p)
+}
+```
 
+```{r plot_grid, echo=FALSE}
+plot_grid <- function(filename, title_override = NULL) {
+  if (!file.exists(filename)) stop("File not found")
+  df <- read.csv(filename, stringsAsFactors = FALSE)
+  colnames(df)[1:2] <- c("raw_time", "raw_value")
+  df$plot_time <- as.POSIXct(df$raw_time, format = "%Y-%m-%d %H:%M:%S")
+  clean_numeric <- function(x) {
+    if (is.numeric(x)) return(x)
+    val <- as.numeric(sub("^([0-9.]+).*", "\\1", x))
+    if (grepl("Mb/s", x, ignore.case = TRUE)
+        || grepl("GiB", x, ignore.case = TRUE)) {
+      val <- val * 1000
+    }
+    val
+  }
+  unit_label <- NULL # Default
+  if (is.character(df$raw_value[1])) {
+    detected_unit <- sub("^[0-9.]+\\s*", "", df$raw_value[1])
+    if (nchar(detected_unit) > 0) {
+      unit_label <- detected_unit
+    }
+  }
+  df$clean_value <- sapply(df$raw_value, clean_numeric)
+  p <- ggplot(df, aes(x = plot_time, y = clean_value)) +
+    geom_line(color = "#2980B9") +
+    geom_point(size = 1) +
+    scale_x_datetime(date_labels = "%H:%M") +
+    labs(title = ifelse(is.null(title_override), filename, title_override), 
+         x = NULL, y = unit_label) +
+    theme_minimal() +
+    theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          plot.title = element_text(hjust = 0.5))
+  return(p)
+}
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 1 - 1 konferencja, 3 uczestników"}
+p1 <- plot_grid("./stress-results/single/1conf-3pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/1conf-3pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/1conf-3pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/1conf-3pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-3pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/1conf-3pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 2 - 1 konferencja, 10 uczestników"}
+p1 <- plot_grid("./stress-results/single/1conf-10pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/1conf-10pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/1conf-10pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/1conf-10pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 3 - 3 konferencje po 10 uczestników"}
+p1 <- plot_grid("./stress-results/single/3conf-10pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/3conf-10pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/3conf-10pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/3conf-10pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/3conf-10pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+p1 <- plot_grid("./stress-results/single/30conf-3pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/30conf-3pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/30conf-3pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/30conf-3pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/30conf-3pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/30conf-3pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+
+<!-- TODO: in order to check deeper into one of the charts just do: -->
+```{r run_plot, echo=FALSE, fig.width=8, fig.height=5, fig.cap="Aaa"}
+# plot_enhanced("./stress-results/single/1conf-3pers/CPU-data.csv")
+```
 
 ## Wyniki oraz spostrzeżenia po optymalizacji za pomocą Octo
 
+Dopiski w nawiasie vbX oznaczają dane z którego z Videobridge są prezentowane, gdzie X to number Videobridge.
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 1 - 1 konferencja, 3 uczestników"}
+p1 <- plot_grid("./stress-results/octo/1conf-3pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/1conf-3pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/1conf-3pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/1conf-3pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/1conf-3pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/1conf-3pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/1conf-3pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/1conf-3pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 2 - 1 konferencja, 10 uczestników"}
+p1 <- plot_grid("./stress-results/octo/1conf-10pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/1conf-10pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/1conf-10pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/1conf-10pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/1conf-10pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/1conf-10pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/1conf-10pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/1conf-10pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 3 - 3 konferencje po 10 uczestników"}
+p1 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/30conf-3pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/30conf-3pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/30conf-3pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/30conf-3pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+p1 <- plot_grid("./stress-results/octo/3conf-10pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/3conf-10pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/3conf-10pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/3conf-10pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/3conf-10pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/3conf-10pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/3conf-10pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate download-data2.csv",
+                 title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate upload-data2.csv",
+                 title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/3conf-10pers/Videobridge stress level-data2.csv",
+                 title_override = "Poziom stresu Videobridge (vb2)")
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
 # Wnioski
+
+abcdef
 
 <!--
 TODO: jitsi sie samoskaluje
