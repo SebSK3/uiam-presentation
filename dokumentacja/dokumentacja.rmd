@@ -161,7 +161,7 @@ Jako, że nie posiadamy publicznego adresu IP, wybraliśmy także następujące 
 * Coturn - serwer TURN oraz STUN umożliwiający przekazywanie ruchu multimedialnego przez NATy i firewalle.
 
 Dwa powyższe rozwiązania zostały wybrane ze względu na fakt, iż były już wykorzystywane przez jedną osobę z zespołu.
-TODO: doppie: nie wiem czy serwer z publicznym IP to narzędzie ale też jest potrzebny
+TODO: nie wiem czy serwer z publicznym IP to narzędzie ale też jest potrzebny
 
 Do prostszego dołączenia wielu użytkowników skorzystamy z platformy `node.js` oraz dostępnej na niej biblioteki `puppeteer`.
 
@@ -329,7 +329,195 @@ Tym samym Jitsi uruchamia się na klastrze, lecz jego przetestowanie nie jest mo
 
 ### Udostępnienie Jitsi publicznie
 
-TODO: doppie: można wrzucić screeny, przykład masz w rozdziale Scenariusz - projekt->sieć, a wszystkie scr są w folderze ./res
+W celu instalacji Pangolina, niezbędne jest uprzednie zainstalowanie Dockera na serwerze z publicznym IP.
+W naszym przypadku serwer jest użytkowany od ponad roku i miał już zainstalowanego Dockera.
+Trudno jest nam określić konkretnie jaka wersja instalowana była wtedy, lecz ze względu na użytkowanie systemu Ubuntu na serwerze, najpewniej wykorzystana była ówczesna wersja poradnika do instalacji Dockera na Ubuntu, aktualnie dostępna pod adresem: https://docs.docker.com/engine/install/ubuntu/.
+
+Instrukcje instalacji Pangolina znajdują się pod adresem: https://docs.pangolin.net/self-host/quick-install.
+Wymagane jest pobranie instalatora, a następnie uruchomienie go z uprawnieniami administracyjnymi:
+
+\begin{listing}[H]
+\begin{minted}{bash}
+curl -fsSL https://static.pangolin.net/get-installer.sh | bash
+sudo ./installer
+\end{minted}
+\caption{Komendy do instalacji Pangolina}
+\end{listing}
+
+Instalator poprosi o podanie wykorzystywanej domeny, adresu pod którym ma być dostępny dashboard (pod wcześniej podaną domeną), email do logowania oraz ceryfikatów Let's Encrypt oraz czy tunelowanie powinno być włączone (które należy włączyć aby móc skorzystać z łatwej konfiguracji jaką oferuje Pangolin).
+Po kilkuminotwej instalacji należy utworzyć konto administratorskie, po czym możliwe będzie zalogowanie się do dashboardu Pangolina.
+
+Przy użyciu Pangolina, możliwe jest udostępnianie usług na tym samym urządzeniu, na którym jest on zainstalowany, lecz w tym konkretnym przypadku interesuje nas skorzystanie z możliwości udostępniania usług znajdujących się na innych urządzeniach.
+W tym celu należy utworzyć "site", czyli połaczenie z danym urządzeniem.
+Na stronie głównej dashboardu Pangolina, należy kliknąć przycisk "Create Site", po czym nadać mu nazwę oraz potencjalnie zmienić automatycznie wygenerowany zakres adresów IP wykorzystywanych przez utworzoną "pod spodem" sieć WireGuard, jak zostało to pokazane na rysunku \ref{fig:pangolin-site}.
+Poniżej znajdują się również losowo wygenerowane dane wykorzystywane w celu połączenia się do serwera.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/110-tworzenie-site-pangolin.png}
+\caption{Tworzenie "site" w Pangolinie}
+\label{fig:pangolin-site}
+\end{figure}
+
+Dane te należy zapisać w miejscu docelowym - w naszym przypadku będzie to klaster Kubernetes.
+Pangolin ma przygotowany poradnik do uruchomienia klienta o nazwie Newt na klastrze Kubernetes, dostępny pod adresem: https://docs.pangolin.net/manage/sites/install-kubernetes.
+W tym celu tworzymy plik 'newt-cred.yaml', o zawartości widocznej na rysunku \ref{fig:pangolin-creds}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/111-zapisanie-credentiali.png}
+\caption{Zapisanie credentiali Pangolina w pliku YAML}
+\label{fig:pangolin-creds}
+\end{figure}
+
+Dane z tego sekretu są następnie wykorzystane w pliku `values.yaml` dla Newt'a (klienta Pangolina), widocznego na rysunku \ref{fig:pangolin-newt-values}, który pozwala na skonfigurowanie Newt'a do połączenia się z serwerem Pangolina.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/112-newt-values.png}
+\caption{Plik values.yaml dla Newt'a (klienta Pangolina)}
+\label{fig:pangolin-newt-values}
+\end{figure}
+
+Z przygotowanymi plikami konfiguracyjnymi, możliwe jest ich zaaplikowanie poprzez użycie komend widocznych na rysunku \ref{fig:pangolin-newt-deploy}.
+Kluczowe jest uprzednie dodanie repozytorium Pangolina do Helma, co pozwala na zainstalowanie Newt'a przy pomocy jednej komendy Helm.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/113-samo-postawienie-newt.png}
+\caption{Komendy do uruchomienia Newt'a (klienta Pangolina) na klastrze Kubernetes}
+\label{fig:pangolin-newt-deploy}
+\end{figure}
+
+Po chwili, w dashboardzie Pangolina powinien pojawić się nowy "site", widoczny na rysunku \ref{fig:pangolin-newt-result}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/114-rezultat.png}
+\caption{Utworzony site (K8s) widoczny w dashboardzie Pangolina}
+\label{fig:pangolin-newt-result}
+\end{figure}
+
+Następnie możliwe jest utworzenie dostępu do strony Jitsi poprzez Pangolina.
+W tym celu należy przejść do zakładki "Resources" w dashboardzie Pangolina, a następnie kliknąć przycisk "Create Resource".
+Pojawi się formularz, widoczny na rysunku \ref{fig:pangolin-route}, w którym należy podać nazwę zasobu, typ (w naszym przypadku HTTP), domenę pod którą ma być dostępne Jitsi (w naszym przypadku `jitsi.google.sex.pl`), oraz adres pod który będą przekierowane żądania (w naszym przypadku adres usług Jitsi w klastrze Kubernetes, czyli `myjitsi-jitsi-meet-web.default.svc.cluster.local`).
+Wykorzystujemy w tym przypadku wewnętrzny adres usługi Kubernetes, ponieważ Newt (klient Pangolina) działa na klastrze i ma dostęp do jego sieci oraz jest w stanie rozwiazać ten adres dzięki wewnętrznemu DNS Kubernetes.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/115v2-tworzenie-dostepu.png}
+\caption{Tworzenie dostępu do Jitsi poprzez Pangolina}
+\label{fig:pangolin-route}
+\end{figure}
+
+Utworzony zasób ma automatycznie włączone TLS, widoczne na rysunku \ref{fig:pangolin-tls}, dzięki czemu dostęp do Jitsi będzie możliwy poprzez HTTPS.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/116-tls.png}
+\caption{Konfiguracja TLS dla dostępu do Jitsi poprzez Pangolina}
+\label{fig:pangolin-tls}
+\end{figure}
+
+Ze względu na stosowanie w celu publicznego wystawiania aplikacji oraz jednoczesnego kontroli dostępu do nich, Pangolin domyślnie włącza SSO (Single Sign-On) dla wszystkich udostępnianych aplikacji.
+W naszym przypadku nie jest to potrzebne, więc należy tę opcję wyłączyć, co zostało pokazane na rysunku \ref{fig:pangolin-sso-off}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/117-wylaczenie-sso.png}
+\caption{Wyłączenie SSO dla dostępu do Jitsi poprzez Pangolina}
+\label{fig:pangolin-sso-off}
+\end{figure}
+
+W przypadku pozostawienia domyślnej opcji włączenia SSO, przy próbie dostępu do Jitsi pojawi się okno logowania, widoczne na rysunku \ref{fig:pangolin-sso-on}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/118-sso.png}
+\caption{Wygląd okna SSO przy włączonej opcji dla dostępu do Jitsi poprzez Pangolina}
+\label{fig:pangolin-sso-on}
+\end{figure}
+
+Po takiej konfiguracji, możliwe jest wejście na stronę naszego Jitsi oraz utworzenie pokoju.
+Rozmowę można jednak prowadzić jedynie przez około minutę, po czym użytkownik jest rozłączany z powodu braku dostępu do JVB.
+Dzieje się tak, ponieważ nie zostało skonfigurowane przekierowanie ruchu multimedialnego do JVB w klastrze Kubernetes.
+
+Aby rozwiązać ten problem, skorzystamy z Tailscale.
+
+Tailscale wymaga utworzenia konta, po czym możliwe jest wygenerowanie klucza sekretu, który pozwoli na automatyczne dołączenie urządzenia do sieci Tailscale.
+Na urządzeniu które chcemy dołączyć do sieci Tailscale należy zainstalować Tailscale, a następnie uruchomić go z wygenerowanym sekretem.
+
+\begin{listing}[H]
+\begin{minted}{bash}
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --authkey <TAILSCALE_AUTH_KEY>
+\end{minted}
+\caption{Komendy do instalacji i uruchomienia Tailscale}
+\end{listing}
+
+Te komendy zostały użyte na serwerze z publicznym IP.
+
+Tailscale oferuje zestaw możliwości uruchomienia na klastrze Kubernetes, opisany dokładnie pod adresem: https://tailscale.com/learn/managing-access-to-kubernetes-with-tailscale.
+Z tego poardnika skorzystamy z opcji uruchomienia Tailscale jako proxy do konkretnej usługi Kubernetes (nie całej sieci), minimalizując w ten sposób potencjalne zagrożenia bezpieczeństwa.
+Aby połączyć Tailscale z JVB w klastrze Kubernetes, należy utworzyć sekret Kubernetes, który będzie przechowywał klucz autoryzacyjny Tailscale (inny niż użyty na serwerze publicznym), widoczny na rysunku \ref{fig:tailscale-secret}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/120-tailscale-secret.png}
+\caption{Sekret Tailscale dla JVB}
+\label{fig:tailscale-secret}
+\end{figure}
+
+Dodatkowo rekomendowane jest stworzenie odpowiednich ról RBAC, które pozwolą Tailscale na aktualizację sekretu z adresem IP przydzielonym przez Tailscale, widocznych na rysunku \ref{fig:tailscale-rbac}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/121-tailscale-rbac.png}
+\caption{Konfiguracja RBAC dla Tailscale w celu aktualizacji sekretu}
+\label{fig:tailscale-rbac}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/122-tailscale-proxy.png}
+\caption{Plik konfiguracyjny Tailscale Proxy do przekierowania ruchu do JVB}
+\label{fig:tailscale-proxy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/123-dlaczego-takie-ip.png}
+\caption{Usługi uruchomione na klastrze Kubernetes, z zaznaczonym adresem IP JVB}
+\label{fig:tailscale-why-ip}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/124-samo-postawienie-tailscale.png}
+\caption{Komendy do uruchomienia Tailscale na klastrze Kubernetes}
+\label{fig:tailscale-deploy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/125-rezultat.png}
+\caption{Urządzenie widoczne w panelu Tailscale po uruchomieniu klienta na klastrze Kubernetes}
+\label{fig:tailscale-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/126-routing-vanguard.png}
+\caption{Komendy iptables do przekierowania ruchu z serwera publicznego do JVB w klastrze Kubernetes}
+\label{fig:tailscale-routing}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/140-efekt.png}
+\caption{Działająca rozmowa w Jitsi, dostępna publicznie}
+\label{fig:jitsi-semi-final}
+\end{figure}
 
 ### Konfiguracja Jitsi z Octo
 
