@@ -98,8 +98,44 @@ Octo pozwala połączyć wiele instancji JVB w jeden logiczny klaster.
 W trybie Octo, JVB zachowuje się jednocześnie jak serwer (dla użytkowników) i jak klient (dla innych mostków JVB), przekazując pakiety między JVB.
 To nadal Jicofo decyduje gdzie użytkownik się połączy.
 
-TODO: sebsk: opisac to co sie dowiedzielismy o jitsi octo
-TODO: doppie: opisac to co sie dowiedzielismy o jitsi octo
+Po włączeniu Octo, Jicofo rozdziela spotkania między różne mostki JVB na podstawie skonfigurowanej "strategii wyboru mostka" (z ang. _"bridge selection strategy"_).
+Dostępnych strategii jest kilka, a domyślna w używanej przez nas konfiguracji to "RegionBasedBridgeSelectionStrategy", która stara się łączyć użytkowników z mostkami w ich regionie geograficznym, jednocześnie pozwalając na pewne odchylenia w celu równoważenia obciążenia.
+Pozostałe (z wyjątkiem pliku Util.kt który zawiera funkcje pomocniczne) są widoczne na rysunku \ref{fig:bridge-selection-strategies}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/bridge-selection-strategies.png}
+\caption{Dostępne strategie wyboru mostka w Jitsi Octo}
+\label{fig:bridge-selection-strategies}
+\end{figure}
+
+Kod odpowiedzialny za wybór mostka w przypadku tej funkcji składa się z wykorzystania kilku funkcji pomoczniczych, które starają się znaleźć najlepszy mostek dla użytkownika - funckje te są również wykorzystane w innych metodach wyboru mostka, jednak te nie zostały przez nas przetestowane.
+
+\begin{listing}[H]
+\begin{minted}{kotlin}
+return notLoadedAlreadyInConferenceInRegion(bridges, conferenceBridges, participantProperties, region)
+            ?: notLoadedAlreadyInConferenceInRegionGroup(bridges, conferenceBridges, participantProperties, region)
+            ?: notLoadedInRegion(bridges, conferenceBridges, participantProperties, region)
+            ?: notLoadedInRegionGroup(bridges, conferenceBridges, participantProperties, region)
+            ?: notLoadedAlreadyInConference(bridges, conferenceBridges, participantProperties)
+            ?: notLoaded(bridges, conferenceBridges, participantProperties)
+            ?: leastLoadedNotMaxedAlreadyInConference(bridges, conferenceBridges, participantProperties)
+            ?: leastLoaded(bridges, conferenceBridges, participantProperties)
+\end{minted}
+\caption{Fragment kodu strategii RegionBasedBridgeSelectionStrategy}
+\end{listing}
+
+Powyższy kod stara się znaleźć najmniej obciążony mostek dla użytkownika, stosując się do następującej kolejności:
+
+* Nieprzeładowany mostek w konferencji w danym regionie (lub jego grupie),
+* Nieprzeładowany mostek w danym regionie (lub jego grupie), lecz niekoniecznie w konferencji,
+* Nieprzeładowany mostek w regionie (lub jego grupie), kiedy konferencja ma mostki w regionie, lecz wszystkie są przeładowane,
+* Najmniej przeładowany mostek znajdujący się w grupie regionu użytkownika oraz konferencji,
+* Najmniej przeładowany mostek znajdujący się w grupie regionu użytkownika,
+* Nieprzeładowany mostek znajdujący się w konferencji,
+* Najmniej przeładowany mostek.
+
+TODO: nie wiem w sumie czy to wszystko, może można coś więcej tu opisać ale nie mam pomysłu tbh
 
 ## Wybór narzędzi
 
