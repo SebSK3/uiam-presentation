@@ -269,6 +269,28 @@ Linijki 5 oraz 16-23 mogłyby w takim przypadku zostać usunięte.
 Ze względu na konfigurację serwera coturn, która wymaga od użytkownika podania sekretu w celu uwierzytelnienia się, wcześniej wspomniane linijki 16-23 pozwalają serwerowi Jitsi na przekazanie tych danych użytkownikowi, który następnie może ich użyć w celu skorzystania z serwera coturn.
 W teorii możliwe jest wydobycie sekretu z tej komunikacji, jednakże szacujemy że jest to relatywnie małe zagrożenie (niewiele osób wie o istnieniu usługi, jeszcze mniej raczej potrzebuje serwera coturn), więc jest to akceptowalne ryzyko.
 
+Sam sekret znajduje się w osobnym pliku `turn-secret.yaml`, którego przykład jest widoczny na rysunku \ref{fig:turn-secret}.
+Oprócz niego znajdują się w nim również adres oraz port.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/101-secret-do-turna.png}
+\caption{Plik sekretu dla serwera coturn}
+\label{fig:turn-secret}
+\end{figure}
+
+Posiadając powyższe dwa pliki, możliwe jest uruchomienie Jitsi przy pomocy dwóch komend, widocznych na rysunku \ref{fig:jitsi-deploy}.
+Pierwsza aplikuje sekret, a druga instaluje Jitsi przy pomocy Helma.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./res/102-komenda-do-postawienia.png}
+\caption{Komendy do uruchomienia Jitsi}
+\label{fig:jitsi-deploy}
+\end{figure}
+
+Tym samym Jitsi uruchamia się na klastrze, lecz jego przetestowanie nie jest możliwe bez udostępnienia go publicznie.
+
 ### Udostępnienie Jitsi publicznie
 
 TODO: doppie: można wrzucić screeny, przykład masz w rozdziale Scenariusz - projekt->sieć, a wszystkie scr są w folderze ./res
