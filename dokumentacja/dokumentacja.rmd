@@ -10,6 +10,9 @@ header-includes:
   - \usepackage{threeparttable}
   - \usemintedstyle{vs}
   - \usepackage[dvipsnames,table]{xcolor}
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+  - \usepackage{placeins}
   - \usetikzlibrary{arrows.meta}
   - \usetikzlibrary{decorations.pathreplacing,calligraphy}
 author:
@@ -18,7 +21,7 @@ author:
   - "Anna Berkowska"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
+  bookdown::pdf_document2:
     latex_engine: lualatex
     includes:
       in_header: columns.tex
@@ -28,7 +31,9 @@ lang: pl
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos = "H", echo = TRUE)
 library(ggplot2)
+library(patchwork)
 library(showtext)
 showtext_auto()
 ```
@@ -219,7 +224,7 @@ W naszym przypadku skorzystaliśmy z trzech maszyn wirtualnych:
 Nasze środowisko zostało wdrożone za pomocą przygotowanych przez nas skryptów Ansible, które dostępne są w repozytorium:
 https://github.com/SebSK3/uiam-prepare-k8s
 
-Najważniejszym elementem jest przygotowanie maszyn (node), których wartości można znaleźć w folderu `host_vars/`.
+Najważniejszym elementem jest przygotowanie maszyn (node), których wartości można znaleźć w folderze `host_vars/`.
 Użytkownik, powinien dostosować następujące wartości:
 
 * `ansible_host` - lokalny adres IP maszyny,
@@ -267,6 +272,16 @@ W teorii możliwe jest wydobycie sekretu z tej komunikacji, jednakże szacujemy 
 ### Udostępnienie Jitsi publicznie
 
 TODO: doppie: można wrzucić screeny, przykład masz w rozdziale Scenariusz - projekt->sieć, a wszystkie scr są w folderze ./res
+
+### Konfiguracja Jitsi z Octo
+
+<!-- TODO: doppie: TODO: folissa: - jedno z was niech opisze tutaj octo jeśli wcześniej nie było opisane -->
+
+Do użycia Octo musimy zmodyfikować jego domyślne `values.yaml` poprzez dopisanie
+TODO: folissa:
+
+Jednym z wymogów Octo jest posiadanie jakiegośtam ip TODO: folissa:
+oraz nie może być na tym samym węźle coś tam coś TODO: folissa
 
 ## Monitoring
 
@@ -429,7 +444,7 @@ TODO: folissa: scr jak zaimportować
 
 # Testowanie oraz omówienie wyników
 
-Niefortunnie dla nas, Jitsi bardzo dobrze się skaluje. Według oficjalnych pomiarów:
+Twórcy Jitsi utrzymują, że ich program bardzo dobrze się skaluje. Według oficjalnych pomiarów:
 
 * Dla 1056 strumieni wideo z bitrate 550mbit/s zużycie CPU to tylko 20% przy czterordzeniowym procesorze,
 * Dla 1056 strumieni wideo zużycie RAMu nie przekroczyło 1.5GB.
@@ -492,13 +507,425 @@ async function startBot(id) {
 \end{listing}
 
 Zmienialiśmy stałe oraz URL do testowania różnych sytuacji. Aby nie pisać za każdym razem każdych parametrów,
-należy założyć, że każda wideokonferencja to zmieniony zasób w zmiennej `JITSI_URL`, oraz różna liczba uczestników to zmienna `BOT_COUNT-1` (gdzie dodatkowa
+należy założyć, że każda wideokonferencja to zmieniony zasób w zmiennej `JITSI_URL`, oraz różna liczba uczestników to zmienna `BOT_COUNT` (gdzie dodatkowa
 osoba to my jako uczestnik).
+
+## Scenariusze testowania
+
+Aby sensownie porównać sprzed i po przeskalowaniu, musimy stwierdzić jakie scenariusze testowania są odpowiednie.
+W każdym ze scenariuszy zostanie przesłany źródłowy strumień wideo w rozdzielczości 1280x720.
+Są to kolejno:
+
+1. 1 konferencja 3 uczestników - testowa konferencja,
+2. 1 konferencja 10 uczestników - przy porównaniu z 1 konferencją i trzema uczestnikami uzyskamy sens wielkości w jakich się poruszamy,
+3. 3 konferencje po 10 uczestników - sprawdzenie możliwości, w przypadku optymalizacji przetestowanie gdzie zostaną umieszczeni użytkownicy końcowi,
+4. 10 konferencji po 3 uczestników - do finalnego dokładniejsze sprawdzenia umieszczenia, w wypadku testowania po optymalizacji.
+
+Odnośnie 3 uczestników, jest to najprostszy sposób na wymuszenie Jitsi aby konferencja nie była p2p, przy testowaniu z jednego źródła. Cały ruch
+wtedy odbywa się bezpośrednio przez JVB.
+
+Przed pójściem dalej, warto zaznajomić się z wartościami które nie są oczywiste:
+
+* zużycie CPU - w Kubernetes wartość CPU nie jest podawana w procentach całego serwera, lecz w jednostkach rdzeni logicznych (vCPU lub Core),
+* poziom stresu Videobridge - całkowity obraz jak wykorzystywany jest Videobridge, gdzie 0 oznacza brak obciążenia, a 1 pełne wykorzystanie zasobów (chociaż wartości większe niż 1 są dopuszczalne).
+
 
 ## Wyniki oraz spostrzeżenia sprzed optymalizacji za pomocą Octo
 
-> Przy pierwotnym testowaniu wynikło, że musimy zmienić sposób testowania. Nie zawrzemy tutaj naszych potknięć które były po drodze.
+```{r plot_enhanced, echo=FALSE}
+plot_enhanced <- function(filename) {
+  if (!file.exists(filename)) {
+    stop(paste("Error: The file", filename, "does not exist."))
+  }
+  df <- read.csv(filename, stringsAsFactors = FALSE)
+  if (ncol(df) < 2) {
+    stop("Error: CSV must have at least 2 columns.")
+  }
+  colnames(df)[1] <- "raw_time"
+  colnames(df)[2] <- "raw_value"
+  df$plot_time <- as.POSIXct(df$raw_time, format = "%Y-%m-%d %H:%M:%S")
+  clean_numeric <- function(x) {
+    if (is.numeric(x)) return(x)
+    val <- as.numeric(sub("^([0-9.]+).*", "\\1", x))
+    if (grepl("Mb/s", x, ignore.case = TRUE)) {
+      val <- val * 1000
+    }
+    val
+  }
+  df$clean_value <- sapply(df$raw_value, clean_numeric)
+  unit_label <- "Wartość" # Default
+  if (is.character(df$raw_value[1])) {
+    detected_unit <- sub("^[0-9.]+\\s*", "", df$raw_value[1])
+    if (nchar(detected_unit) > 0) {
+      unit_label <- detected_unit
+    }
+  }
+  p <- ggplot(df, aes(x = plot_time, y = clean_value)) +
+    geom_line(color = "#E74C3C", linewidth = 1) +
+    geom_point(color = "#C0392B", size = 2) +
+    scale_x_datetime(date_labels = "%H:%M", date_breaks = "10 min") +
+    scale_y_continuous(n.breaks = 20) +
+    labs(
+      x = "Czas wykonania pomiaru",
+      y = unit_label # Uses the detected unit (e.g., "mib")
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  return(p)
+}
+```
+
+```{r plot_grid, echo=FALSE}
+plot_grid <- function(filename, title_override = NULL) {
+  if (!file.exists(filename)) stop("File not found")
+  df <- read.csv(filename, stringsAsFactors = FALSE)
+  colnames(df)[1:2] <- c("raw_time", "raw_value")
+  df$plot_time <- as.POSIXct(df$raw_time, format = "%Y-%m-%d %H:%M:%S")
+  clean_numeric <- function(x) {
+    if (is.numeric(x)) return(x)
+    val <- as.numeric(sub("^([0-9.]+).*", "\\1", x))
+    if (grepl("Mb/s", x, ignore.case = TRUE)
+        || grepl("GiB", x, ignore.case = TRUE)) {
+      val <- val * 1000
+    }
+    val
+  }
+  unit_label <- NULL # Default
+  if (is.character(df$raw_value[1])) {
+    detected_unit <- sub("^[0-9.]+\\s*", "", df$raw_value[1])
+    if (nchar(detected_unit) > 0) {
+      unit_label <- detected_unit
+    }
+  }
+  df$clean_value <- sapply(df$raw_value, clean_numeric)
+  p <- ggplot(df, aes(x = plot_time, y = clean_value)) +
+    geom_line(color = "#2980B9") +
+    geom_point(size = 1) +
+    scale_x_datetime(date_labels = "%H:%M") +
+    labs(title = ifelse(is.null(title_override), filename, title_override), 
+         x = NULL, y = unit_label) +
+    theme_minimal() +
+    theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          plot.title = element_text(hjust = 0.5))
+  return(p)
+}
+```
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 1 - 1 konferencja, 3 uczestników"}
+p1 <- plot_grid("./stress-results/single/1conf-3pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/1conf-3pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/1conf-3pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/1conf-3pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-3pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/1conf-3pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+Przy pierwszym scenariuszu widzimy duża korelację pomiędzy zużyciem procesora, RAMu oraz poziomu stresu VideoBridge.
+Widzimy także, że początek konferencji jest najbardziej wymagający dla całego systemu. Przyjrzyjmy się bliżej metryce RTT.
 
 
+```{r echo=FALSE, fig.width=8, fig.height=5, fig.cap="Szczegółowy wykres RTT dla scenariusza 1"}
+plot_enhanced("./stress-results/single/1conf-3pers/RTT-data.csv")
+```
+
+W tym scenariusz RTT występuje pomiędzy 60 a 70 milisekund. Jest to zadowalający wynik,
+patrząc na to, że architektura sieciowa tej aplikacji jest naprawdę skomplikowana.
+Wystąpiła jedna potocznie nazywana "czkawka" (hiccup), w której RTT wynosiło 160ms.
+Ta "czkawka" występuje z każdym z następnych pomiarów, które nie były zoptymalizowane za pomocą octo.
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 2 - 1 konferencja, 10 uczestników"}
+p1 <- plot_grid("./stress-results/single/1conf-10pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/1conf-10pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/1conf-10pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/1conf-10pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+Przy scenariuszu 2 pierwsze rzeczy jakie rzucają się w oczy to nieoczekiwany spadek zużycia CPU oraz zerowy bitrate około godziny
+13:16. Przez charakter testu, nie wiemy co dokładnie się wydarzyło, lecz Jitsi działało poprawnie. Zakładamy, że był to błąd
+systemu którego zadaniem było testowanie Jitsi.
+Nie mniej, widać korelację między każdym z elementów tak, jak miało miejsce w poprzednim pomiarze.
+
+Warto zauważyć, że zużycie RAMu jest wysokie i nie spada - taka sytuacja dzieje się także na następnym pomiarze.
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 3 - 3 konferencje po 10 uczestników"}
+p1 <- plot_grid("./stress-results/single/3conf-10pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/3conf-10pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/3conf-10pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/3conf-10pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/1conf-10pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/3conf-10pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+Tu widzimy, że zużycie RAMu przekracza w tym momencie 1.5GB, co nie zgadza się z pomiarami zaprezentowanymi przez twórców Jitsi.
+Nawet jeśli założymy najbardziej pozytywny dla ich pomiarów scenariusz (niewygaśnięcie poprzednich rozmów, utrzymywanie wszystkich łącz)
+mamy nadal sytuację, gdzie istnieją 43 strumienie wideo oraz audio, co jest ponad 20-krotnie mniejszą liczbą niż deklarowane 1053
+przy takim zużyciu zasobów.
+
+Przy tych wykresach warto zapamiętać zużycie CPU na poziomie 0.4, poziom stresu na poziomie 0.1 oraz
+bitrate na poziomie 4000 (pobieranie), przydadzą się do następnych wniosków.
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+p1 <- plot_grid("./stress-results/single/30conf-3pers/CPU-data.csv",
+                title_override = "Zużycie CPU")
+p2 <- plot_grid("./stress-results/single/30conf-3pers/RAM-data.csv",
+                title_override = "Zużycie RAM")
+p3 <- plot_grid("./stress-results/single/30conf-3pers/RTT-data.csv",
+                title_override = "RTT")
+p4 <- plot_grid("./stress-results/single/30conf-3pers/Bitrate download-data.csv",
+                title_override = "Bitrate (pobieranie)")
+p5 <- plot_grid("./stress-results/single/30conf-3pers/Bitrate upload-data.csv",
+                title_override = "Bitrate (wysyłanie)")
+p6 <- plot_grid("./stress-results/single/30conf-3pers/Videobridge stress level-data.csv",
+                title_override = "Poziom stresu Videobridge")
+
+(p1 + p2 + p3 + p4 + p5 + p6) +
+  plot_layout(ncol = 3)
+```
+
+Tu jasno widać piętę achillesową Jitsi - ilość konferencji. Przy sytuacji tej samej ilości uczestników,
+lecz wyższej liczbie konferencji system potrzebuje lekko ponad dwukrotności zasobów. Zużycie CPU jest na poziomie 1.0,
+a birate pobierania jest na poziomie 10000. Poziom stresu także zwiększył się podwójnie, zgodnie z korelacją którą
+zaznaczyliśmy w wynikach z pierwszego scenariusza.
+
+Tutaj także widzimy najbardziej "poszarpany" wykres wysyłania bitrate.
+
+```{r bitrate-upload-enhanced-4thscenario, echo=FALSE, fig.width=8, fig.height=5, fig.cap="Bitrate (wysyłanie) dla scenariusza 4"}
+plot_enhanced("./stress-results/single/30conf-3pers/Bitrate upload-data.csv")
+```
+
+Ciężko tutaj o jednoznaczną przyczynę, lecz teoria nad tym zostanie omówiona w rozdziale "Wnioski".
 
 ## Wyniki oraz spostrzeżenia po optymalizacji za pomocą Octo
+
+Dopiski w nawiasie vbX oznaczają dane z którego z Videobridge są prezentowane, gdzie X to number Videobridge.
+
+W tej sytuacji posiadamy instancję Jitsi z jej funkcją "Octo", wewnętrznie przez twórców nazywaną "Relay", która
+umożliwia połączenie wielu Videobridge tak, aby mogły rozdzielić między siebie całość ruchu.
+
+Niefortunnie, nie byliśmy w stanie otrzymać scenariusza w którym na jednym Videobridge istnieje jedna konferencja.
+Udało się nam to w testowaniu ręcznym przed zrobieniem dokumentu, lecz mogło to mieć związek z błędną konfiguracją
+(podany adres bezpośrednio do jednego z Videobridge, zamiast ogólnie do serwisu który mógł rozłożyć ruch).
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 1 - 1 konferencja, 3 uczestników"}
+p1 <- plot_grid("./stress-results/octo/1conf-3pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/1conf-3pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/1conf-3pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/1conf-3pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/1conf-3pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/1conf-3pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/1conf-3pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/1conf-3pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/1conf-3pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+Już na starcie widać korelację między obydwoma instancjami. Zużycie wzrasta na obydwu równomiernie, lecz vb1
+konsekwentnie jest o połowę mniej obciążone niż vb2. Jak poprzednio, korelacja z poziomem stresu jest taka sama.
+Przyjrzyjmy się RTT dla obydwu sytuacji.
+
+```{r echo=FALSE, fig.width=8, fig.height=5, fig.cap="Scenariusz 1 OCTO - RTT (vb1)"}
+plot_enhanced("./stress-results/octo/1conf-3pers/RTT-data1.csv")
+```
+
+```{r echo=FALSE, fig.width=8, fig.height=5, fig.cap="Scenariusz 1 OCTO - RTT (vb2)"}
+plot_enhanced("./stress-results/octo/1conf-3pers/RTT-data2.csv")
+```
+
+Można zauważyć, że mniej obciążony Videobridge ma delikatnie większy RTT (różnica ok. 5ms). Jak wspomniane wcześniej, wnioski przedstawione
+będą na końcu.
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 2 - 1 konferencja, 10 uczestników"}
+p1 <- plot_grid("./stress-results/octo/1conf-10pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/1conf-10pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/1conf-10pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/1conf-10pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/1conf-10pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/1conf-10pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/1conf-10pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/1conf-10pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/1conf-10pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+Dla scenariusza drugiego vb1 został obciążony bardziej. W RTT znów widzimy nagły skok. Bitrate
+dla wysyłania jest tutaj poszarpany o wiele bardziej.
+
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 3 konferencje po 10 uczestników"}
+p1 <- plot_grid("./stress-results/octo/3conf-10pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/3conf-10pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/3conf-10pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/3conf-10pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/3conf-10pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/3conf-10pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/3conf-10pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate download-data2.csv",
+                 title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/3conf-10pers/Bitrate upload-data2.csv",
+                 title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/3conf-10pers/Videobridge stress level-data2.csv",
+                 title_override = "Poziom stresu Videobridge (vb2)")
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+Dla scenariusza 3 jest najwyższy skok RTT. Poniżej przybliżenie wykresów.
+
+```{r echo=FALSE, fig.width=8, fig.height=4, fig.cap="Scenariusz 1 OCTO - RTT (vb1)"}
+plot_enhanced("./stress-results/octo/3conf-10pers/RTT-data1.csv")
+```
+
+```{r echo=FALSE, fig.width=8, fig.height=4, fig.cap="Scenariusz 1 OCTO - RTT (vb2)"}
+plot_enhanced("./stress-results/octo/3conf-10pers/RTT-data2.csv")
+```
+
+Fortunnie, średnio RTT wynosi około 75ms. Ten jeden skok nie miał dużego wpływu na rozmowę.
+
+
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+p1 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data1.csv",
+                title_override = "Zużycie CPU (vb1)")
+p2 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data1.csv",
+                title_override = "Zużycie RAM (vb1)")
+p3 <- plot_grid("./stress-results/octo/30conf-3pers/RTT-data1.csv",
+                title_override = "RTT (vb1)")
+p4 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate download-data1.csv",
+                title_override = "Bitrate (pobieranie) (vb1)")
+p5 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate upload-data1.csv",
+                title_override = "Bitrate (wysyłanie) (vb1)")
+p6 <- plot_grid("./stress-results/octo/30conf-3pers/Videobridge stress level-data1.csv",
+                title_override = "Poziom stresu Videobridge (vb1)")
+
+p7 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data2.csv",
+                title_override = "Zużycie CPU (vb2)")
+p8 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data2.csv",
+                title_override = "Zużycie RAM (vb2)")
+p9 <- plot_grid("./stress-results/octo/30conf-3pers/RTT-data2.csv",
+                title_override = "RTT (vb2)")
+p10 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate download-data2.csv",
+                title_override = "Bitrate (pobieranie) (vb2)")
+p11 <- plot_grid("./stress-results/octo/30conf-3pers/Bitrate upload-data2.csv",
+                title_override = "Bitrate (wysyłanie) (vb2)")
+p12 <- plot_grid("./stress-results/octo/30conf-3pers/Videobridge stress level-data2.csv",
+                title_override = "Poziom stresu Videobridge (vb2)")
+
+
+(p1 + p2 + p3 + p7 + p8 + p9 + p4 + p5 + p6 + p10 + p11 + p12) +
+  plot_layout(ncol = 3)
+```
+
+W scenariuszu 4 znów vb2 jest obciążone bardziej. Dodatkowo widzimy niespodziewaną sytuację: zużycie RAMu spadło dla obydwu instancji.
+Inną obserwacją jest stałe zużycie RAMu po spadku przy vb2, które ciągnie się do końca transmisji.
+
+
+# Wnioski
+
+Głównym, najbardziej nieoczekiwanym i niezrozumianym spostrzeżeniem jest nieprzewidywalne zużycie pamięci RAM.
+Rośnie ono z każdą następną konferencją, oraz maleje w różnych momentach. Według nas, jest spowodowane to
+przetrzymywaniem pokoi konferencyjnych po ich zakończeniu, aby umożliwić szybki powrót.
+
+Drugą rzeczą jest różnica 5 milisekund w RTT gdy patrzymy na konferencje w OCTO. Według nas, jest spowodowane to
+dodatkowym przesyłem danych pomiędzy instancjami videobridge.
+
+Widać jednoznaczą korelację z ilością konferencji a znacząco wyższym bitrate. Bardziej obciążające łącze jest wiele
+konferencji przy tej samej ogólnej ilości uczestników. Fortunnie, w sytuacji octo widzimy rozłożenie tego obciążenia.
+
+Jedną z obserwacji która nie jest udokumentowana, była dynamiczna zmiana rozdzielczości przez Jitsi aby utrzymać
+akceptowalny poziom jakości rozmowy. Widzieliśmy skok rozdzielczości z 1280x720 do 360x180, gdy pojawiało się więcej uczestników.
+Nasze testy, mimo bycia konkretnymi scenariuszami, nadal mogą być cięższe w dokładnym odtworzeniu, ze względu na dynamiczne
+zachowanie programu. Przy przybliżeniu w aplikacji jednego z uczestników, który przesyła strumień wideo, rozdzielczość
+oraz bitrate dla tego wideo jest automatycznie
+zwiększane.
+W rysunku \@ref(fig:bitrate-upload-enhanced-4thscenario) został ukazany najmniej zrozumiany przez nas wykres. Wydaje nam się,
+że przez wysokie zużycie Jitsi, próbowało ono dynamicznie zmniejszać oraz zwiększać rozdzielczość tak, aby konsekwentnie
+rozdzielić swoje zasoby pomiędzy wszystkie konferencje.
+
+
+<!--
+TODO: ilość konferenecji bitrate-upload-enhanced-4thscenario
+TODO: ms w octo (jeden videobridge wysyla do drugiego)
+TODO: bitrate dla różnych sytuacji
+TODO: jitsi sie samoskaluje
+TODO: jak kliknie sie w kogos to wysyla z wieksza rozdzielczoscia
+-->
