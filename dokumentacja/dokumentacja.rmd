@@ -238,32 +238,88 @@ i przerobienia danych).
 
 ### Baza danych
 
-Do przechowywania metryk został wybrany program Mimir w trybie mikroserwisów.
+Do przechowywania metryk został wybrany program Mimir w trybie mikroserwisów. Wybrany został tryb wdrożenia,
+gdzie Mimir rozbity jest na wiele mikroserwisów, ponieważ dobrze działa ona na Kubernetes. Istnieje także
+architektura, gdzie Mimir zamknięty jest w jednym pliku binarnym. Mikroserwisy pozwalają m.in.
+na skalowanie aplikacji w prostszy sposób (skalowanie pojedyńczych komponentów), a także zapewnia odporność
+na przerwę w pracy, ponieważ pozwala na niedostępność pojedyńczych elementów, a nie całej aplikacji.
 
 Został on skonfigurowany w następujący sposób:
 
 \begin{listing}[H]
 \begin{minted}{yaml}
-TODO: folissa:
+---
+### Sekcja 1 ########################################
+mimir:
+  structuredConfig:
+    ingest_storage:
+      enabled: false
+    ingester:
+      push_grpc_method_enabled: true
+    common:
+      storage:
+        backend: "s3"
+        s3:
+          endpoint: "mimir-minio.svc.cluster.local:9000"
+          insecure: true
+          access_key_id: "grafana-mimir"
+          secret_access_key: "supersecret"
+### Sekcja 2 ########################################
+store_gateway:
+  zoneAwareReplication:
+    enabled: false
+  persistentVolume:
+    enabled: false
+ingester:
+  zoneAwareReplication:
+    enabled: false
+  persistentVolume:
+    enabled: false
+compactor:
+  persistentVolume:
+    enabled: false
+ruler:
+  persistentVolume:
+    enabled: false
+minio:
+  persistence:
+    enabled: false
+### Sekcja 3 ########################################
+kafka:
+  enabled: false
+alertmanager:
+  enabled: false
+nginx:
+  enabled: false
+rollout_operator:
+  enabled: false
 \end{minted}
 \caption{Plik values.yaml programu Mimir}
 \end{listing}
 
-Zostało to tak skonfigurowane, ponieważ w przypadku testowania niepotrzebne jest nam długotrwałe przechowywanie metryk. Wiązałoby
-to się z dodatkowym obciążeniem klastra, a dodatkowo z dużą warstwą którą musielibyśmy dodatkowo wdrożyć. Metryki te są przechowywane w pamięci
-operacyjnej i znikają, gdy Pody się zrestartują.
+Idąc od góry:
 
-Wdrożenie go następuje za pomocą komend:
+1. W pierwszej sekcji ustawiona jest konfiguracja samego Mimir. Wyłączony jest `ingest_storage`, a dodatkowo `ingester` (jeden z komponentów) przyjmuje
+`push_grpc_method_enabled: true`, ponieważ nie chcemy używać architektury Mimir 3.0, która używa Kafki.
+W `storage` jest konfiguracja kubełków S3, w których przechowywane są metryki, alerty itd.
+`storage` ustawiony jest w `common`, dzięki czemu wszystkie `Pod` otrzymują tą wspólną konfigurację.
+2. W sekcji drugiej wymienione są używane mikroserwisy Mimir np. `compactor`, `ruler`. Wyłączone mają one `persistence`, czy też `persistentVolume`,
+ponieważ w przypadku testowania niepotrzebne jest nam długotrwałe przechowywanie metryk. Dane są utracone przy restarcie kontenera.
+`zoneAwareReplication` jest również wyłączone, ponieważ mamy jeden klaster składający się z trzech maszyn wirtualnych i niej jesteśmy w stanie rozłożyć aplikacji
+na więcej klastrów, czy fizycznych lokalizacji, które byłyby tzw. failure domain.
+3. W sekcji trzeciej wyłączone są komponety Mimir, które nie są nam potrzebne do naszego przypadku użycia.
+
+Wdrożenie Mimir następuje za pomocą komend:
 
 ```
-$ komenda1 TODO: folissa:
-$ komenda2
+$ helm repo add grafana https://grafana.github.io/helm-charts
+$ helm install mimir grafana/mimir-distributed --namespace mimir --values values.yaml
 ```
 
-Komendy robią następująco: TODO: folissa:
+Komendy robią następująco:
 
-1. Dodanie coś tam coś
-2. Coś tam coś tam
+1. Dodaje repozytorium `grafana`, z którego pobrany zostanie chart
+2. Instaluje instancje aplikacji `mimir`, używając chart `grafana/mimir-distributed` w przestrzeni nazw `mimir`, o wartościach `values.yaml`
 
 ### Program do zbierania i wysyłania metryk
 
@@ -348,47 +404,55 @@ $ helm install alloy grafana/alloy --namespace alloy --values values.yaml
 
 ### Aplikacja prezentowania danych
 
-Do monitorowania danych wykorzystywany jest program Grafana. 
-Skonfigurowana została ona w następujący sposób
+Do prezentowania zbieranych danych wykorzystywany jest program Grafana. 
+Skonfigurowana została ona w następujący sposób:
 
 \begin{listing}[H]
 \begin{minted}{yaml}
-TODO: folissa:
+---
+adminUser: "admin"
+adminPassword: "admin"
 \end{minted}
 \caption{Plik values.yaml programu Grafana}
 \end{listing}
 
-Zostało to tak skonfigurowane, ponieważ coś tam coś.
-Fragment cośtamcoś odpowiada cośtamcoś
+Powyższa konfiguracja zawiera plik konfiguracyjny Grafany `values.yaml`, który konfiguruje
+użytkownika `admin` o haśle `admin`, co w wersji produkcyjnej powinno być schowane w sekrecie, ale dla celów testowych nie ma to większego znaczenia.
 
-Wdrożenie go następuje za pomocą komend:
+Wdrożenie następuje za pomocą komend:
 
 ```
-$ komenda1 TODO: folissa:
-$ komenda2
+$ helm repo add grafana https://grafana.github.io/helm-charts
+$ helm install grafana grafana/grafana --namespace grafana --values values.yaml
 ```
 
-Komendy robią następująco: TODO: folissa:
+Komendy robią następująco:
 
-1. Dodanie coś tam coś
-2. Coś tam coś tam
+1. Dodaje repozytorium `grafana`, z którego pobrany zostanie chart (repozytorium wystarczy dodać raz, więc jeżeli było to zrobione wcześniej, to można pominąć)
+2. Instaluje instancje aplikacji `grafana`, używając chart `grafana/grafana` w przestrzeni nazw `grafana`, o wartościach `values.yaml`
 
 Aby połączyć się z programem Grafana należy przekierować port z Kubernetes na swoją maszynę:
 
 ```
-$ kubectl port-forward service/grafana 3000:3000 -n <przestrzen_nazw_grafany> TODO: folissa: poprawic tu komende jesli jest zle
+$ export POD_NAME=$(kubectl get pods --namespace grafana \
+-l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=grafana" \
+-o jsonpath="{.items[0].metadata.name}")
+$ kubectl --namespace grafana port-forward $POD_NAME 3000
 ```
 
 > Uwaga! Wymaga to, abyśmy mieli dostęp do klastra z naszej maszyny.
 
+Przygotowany został panel przedstawiający zebrane metryki z Jitsi. Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
 
-Dodatkowo, został przygotowany panel, który wizualizuje dynamiczną aplikację. Jest dołączony do plików, które zostały wysłane
-na enauczaniu (jest za długi aby umieścić go tutaj). Ma dwie wizualizacje: pierwszą, która wizualizuję sumę zapytań
-do wszystkich wdrożonych aplikacji, oraz drugą, sumę każdej instancji z aplikacji z osobna.
+TODO: folissa/sebsk - podać ten panel na enauczanie i opisać tutaj
 
-Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
+Aby zaimportować panel, wystarczy wejść do Grafana w zakładkę "Dashboards" oraz wybrać "New" po czym przejść do opcji "Import".
 
-TODO: folissa: scr jak zaimportować 
+![](res/import-dashboard.png)
+
+Po przejściu do opcji "Import" wystarczy wkleić dołączony do dokumentacji panel oraz wcisnąć "Load".
+
+![](res/import-view.png)
 
 # Testowanie oraz omówienie wyników
 
