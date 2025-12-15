@@ -477,12 +477,18 @@ Dodatkowo rekomendowane jest stworzenie odpowiednich ról RBAC, które pozwolą 
 \label{fig:tailscale-rbac}
 \end{figure}
 
+Następnie można skonfigurować uruchomienie samego Tailscale, na bazie rekomendowanych ustawień z poradnika powyżej, widocznego na rysunku \ref{fig:tailscale-proxy}
+Kluczowe w konfiguracji jest użycie odpowiedniego serviceAccountName, aby pod uruchamiał się pod tymże kontem, kontener inicjalizujący, który zezwala na przekierowanie pakietów IP (co jest wymagane da działania Tailscale w trybie proxy) oraz zmienne środowiskowe - klucz autentykujący oraz adres IP usługi, do której chcemy przekierować ruch.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{./res/122-tailscale-proxy.png}
 \caption{Plik konfiguracyjny Tailscale Proxy do przekierowania ruchu do JVB}
 \label{fig:tailscale-proxy}
 \end{figure}
+
+Znalezienie usługi możliwe jest poprzez komendę `kubectl get services`, gdzie wyświetlony będzie również jej adres IP.
+Na rysunku \ref{fig:tailscale-why-ip} pokazany jest wynik działania tejże komendy, wraz z zaznaczonym adresem IP JVB, który został użyty w celu uruchomienia proxy Tailscale.
 
 \begin{figure}[H]
 \centering
@@ -491,12 +497,20 @@ Dodatkowo rekomendowane jest stworzenie odpowiednich ról RBAC, które pozwolą 
 \label{fig:tailscale-why-ip}
 \end{figure}
 
+Po przygotowaniu powyższych plików można je zaaplikować przy użyciu kilku komend `kubectl apply`, widocznych na rysunku \ref{fig:tailscale-deploy}.
+W przeciwieństwie do Pangolina czy Jitsi, Tailscale wykorzystuje obraz Dockera, więc nie jest potrzebne użycie Helma do jego instalacji.
+
+TODO: wywalić helma z poniższego rysunku, nie jest używany
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{./res/124-samo-postawienie-tailscale.png}
 \caption{Komendy do uruchomienia Tailscale na klastrze Kubernetes}
 \label{fig:tailscale-deploy}
 \end{figure}
+
+Po uruchomieniu komend możliwa jest komunikacja między serwerem z publicznym IP oraz klastrem poprzez sieć Tailscale.
+Odpowiednie urządzenie pojawia się również w panelu administratorskim Tailscale, widoczne na rysunku \ref{fig:tailscale-result}.
 
 \begin{figure}[H]
 \centering
@@ -505,12 +519,19 @@ Dodatkowo rekomendowane jest stworzenie odpowiednich ról RBAC, które pozwolą 
 \label{fig:tailscale-result}
 \end{figure}
 
+Ustanowiona komunikacja umożliwia przekierowanie ruchu wchodzącego na port 10000 protokołu UDP serwera z publicznym IP do JVB postawionego w klastrze.
+W tym celu skorzystamy z iptables, w którym takie przekierowanie możliwe jest przy użyciu dwóch komend, widocznych na rysunku \ref{fig:tailscale-routing}.
+Ze względu na dynamiczny routing jaki umożliwia Tailscale, wymagane jest jedynie podanie adresu IP, takiego jaki pokazał się w panelu administracyjnym na rysunku \ref{fig:tailscale-result}.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{./res/126-routing-vanguard.png}
 \caption{Komendy iptables do przekierowania ruchu z serwera publicznego do JVB w klastrze Kubernetes}
 \label{fig:tailscale-routing}
 \end{figure}
+
+W ten sposób skonfigurowane proxy na serwerze umożliwia komunikację użytkownika z JVB, czego efektem jest możliwe przeprowadzenie rozmowy, której test widoczny jest na rysunku \ref{fig:jitsi-semi-final}.
+Rozmowa była przeprowadzona przy użyciu dwóch urządzeń w tej samej sieci - laptopa oraz komputera desktop, a także telefonu połączonego do innej sieci przez 5G.
 
 \begin{figure}[H]
 \centering
