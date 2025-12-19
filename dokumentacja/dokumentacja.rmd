@@ -538,13 +538,39 @@ Rozmowa była przeprowadzona przy użyciu dwóch urządzeń w tej samej sieci - 
 
 ### Konfiguracja Jitsi z Octo
 
-<!-- TODO: doppie: TODO: folissa: - jedno z was niech opisze tutaj octo jeśli wcześniej nie było opisane -->
+Do użycia Octo musimy zmodyfikować jego domyślne `values.yaml` poprzez dopisanie:
 
-Do użycia Octo musimy zmodyfikować jego domyślne `values.yaml` poprzez dopisanie
-TODO: folissa:
+```yaml
+octo:
+  enabled: True
+```
 
-Jednym z wymogów Octo jest posiadanie jakiegośtam ip TODO: folissa:
-oraz nie może być na tym samym węźle coś tam coś TODO: folissa
+Przeskalowanie samego JVB polega na dodaniu liczby instancji w `jvb.replicaCount`:
+
+```yaml
+jvb:
+  replicaCount: 2
+```
+
+Jednym z wymogów Octo jest to, aby każdy JVB ogłaszał stały, routowalny adres IP, pod którym jest osiągalny przez inne JVB oraz klientów.
+Opcja ta powoduje, że JVB wykorzystuje zewnętrzny adres IP węzła (Node IP), a nie adres IP dla Pod, który nie jest routowalny pomiędzy węzłami ani dla klientów.
+
+```yaml
+jvb:
+  # Każdy Pod JVB ogłasza wyłącznie zewnętrzny adres IP swojego Node
+  useNodeIP: true
+```
+
+Dodatkowo JVB musi wystawiać swój port bezpośrednio na węźle, na którym jest uruchomiony.
+Użycie hostPort sprawia, że port UDP Jitsi Videobridge jest dostępny bezpośrednio na adresie IP węzła.
+Jednocześnie oznacza to, że na jednym węźle może działać tylko jedna instancja JVB, ponieważ ten sam port nie może być współdzielony przez wiele podów.
+
+```yaml
+jvb:
+  # Wystaw port interfejsu JVB na świat zewnętrzny tylko na węzłach,
+  # które faktycznie go posiadają
+  useHostPort: true
+```
 
 ## Monitoring
 
