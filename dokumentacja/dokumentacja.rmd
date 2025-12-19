@@ -707,7 +707,7 @@ przy takim zużyciu zasobów.
 Przy tych wykresach warto zapamiętać zużycie CPU na poziomie 0.4, poziom stresu na poziomie 0.1 oraz
 bitrate na poziomie 4000 (pobieranie), przydadzą się do następnych wniosków.
 
-```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 10 konferencji po 3 uczestników"}
 p1 <- plot_grid("./stress-results/single/30conf-3pers/CPU-data.csv",
                 title_override = "Zużycie CPU")
 p2 <- plot_grid("./stress-results/single/30conf-3pers/RAM-data.csv",
@@ -876,7 +876,7 @@ plot_enhanced("./stress-results/octo/3conf-10pers/RTT-data2.csv")
 Fortunnie, średnio RTT wynosi około 75ms. Ten jeden skok nie miał dużego wpływu na rozmowę.
 
 
-```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 10 konferencji po 3 uczestników"}
 p1 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data1.csv",
                 title_override = "Zużycie CPU (vb1)")
 p2 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data1.csv",
