@@ -442,15 +442,16 @@ $ kubectl --namespace grafana port-forward $POD_NAME 3000
 
 > Uwaga! Wymaga to, abyśmy mieli dostęp do klastra z naszej maszyny.
 
-Przygotowany został panel przedstawiający zebrane metryki z Jitsi. Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
+Użyliśmy istniejącego już panelu (ang. dashboard) Grafany dla Jitsi: https://grafana.com/grafana/dashboards/12098-jitsi-meet/, przedstawiającego zebrane metryki z Jitsi.
+Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
 
-TODO: folissa/sebsk - podać ten panel na enauczanie i opisać tutaj
+Należy pobrać plik JSON ze strony podanej powyżej.
 
 Aby zaimportować panel, wystarczy wejść do Grafana w zakładkę "Dashboards" oraz wybrać "New" po czym przejść do opcji "Import".
 
 ![](res/import-dashboard.png)
 
-Po przejściu do opcji "Import" wystarczy wkleić dołączony do dokumentacji panel oraz wcisnąć "Load".
+Po przejściu do opcji "Import" wystarczy wysłac plik JSON panelu oraz wcisnąć "Load".
 
 ![](res/import-view.png)
 
