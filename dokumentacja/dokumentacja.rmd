@@ -23,6 +23,7 @@ date: "`r Sys.Date()`"
 output:
   bookdown::pdf_document2:
     latex_engine: lualatex
+    toc: true
     includes:
       in_header: columns.tex
 fontsize: 12pt
@@ -37,8 +38,6 @@ library(patchwork)
 library(showtext)
 showtext_auto()
 ```
-
-\tableofcontents
 
 # Wstęp teoretyczny
 
