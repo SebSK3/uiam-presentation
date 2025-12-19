@@ -135,8 +135,6 @@ Powyższy kod stara się znaleźć najmniej obciążony mostek dla użytkownika,
 * Nieprzeładowany mostek znajdujący się w konferencji,
 * Najmniej przeładowany mostek.
 
-TODO: nie wiem w sumie czy to wszystko, może można coś więcej tu opisać ale nie mam pomysłu tbh
-
 ## Wybór narzędzi
 
 Do postawienia klastra użyjemy programu Ansible.
@@ -160,8 +158,8 @@ Jako, że nie posiadamy publicznego adresu IP, wybraliśmy także następujące 
 * Tailscale - oparty na WireGuard mesh'owy VPN pozwalający na łatwe łączenie urządzeń i tworzenie "wirtualnej sieci" między nimi,
 * Coturn - serwer TURN oraz STUN umożliwiający przekazywanie ruchu multimedialnego przez NATy i firewalle.
 
-Dwa powyższe rozwiązania zostały wybrane ze względu na fakt, iż były już wykorzystywane przez jedną osobę z zespołu.
-TODO: nie wiem czy serwer z publicznym IP to narzędzie ale też jest potrzebny
+Dwa z powyższych rozwiązań (Pangolin oraz Tailscale) zostały wybrane ze względu na fakt, iż były już wykorzystywane przez jedną osobę z zespołu.
+Dodatkowo wykorzystanie zostany serwer należący do jednego członka zespołu mający publiczny adres IPv4, na którym postawione są wyżej wymienione aplikacje.
 
 Do prostszego dołączenia wielu użytkowników skorzystamy z platformy `node.js` oraz dostępnej na niej biblioteki `puppeteer`.
 
@@ -500,11 +498,9 @@ Na rysunku \ref{fig:tailscale-why-ip} pokazany jest wynik działania tejże kome
 Po przygotowaniu powyższych plików można je zaaplikować przy użyciu kilku komend `kubectl apply`, widocznych na rysunku \ref{fig:tailscale-deploy}.
 W przeciwieństwie do Pangolina czy Jitsi, Tailscale wykorzystuje obraz Dockera, więc nie jest potrzebne użycie Helma do jego instalacji.
 
-TODO: wywalić helma z poniższego rysunku, nie jest używany
-
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\textwidth]{./res/124-samo-postawienie-tailscale.png}
+\includegraphics[width=0.8\textwidth]{./res/124v2.png}
 \caption{Komendy do uruchomienia Tailscale na klastrze Kubernetes}
 \label{fig:tailscale-deploy}
 \end{figure}
