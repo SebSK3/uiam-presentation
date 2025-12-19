@@ -112,7 +112,7 @@ Pozostałe (z wyjątkiem pliku Util.kt który zawiera funkcje pomocniczne) są w
 Kod odpowiedzialny za wybór mostka w przypadku tej funkcji składa się z wykorzystania kilku funkcji pomoczniczych, które starają się znaleźć najlepszy mostek dla użytkownika - funckje te są również wykorzystane w innych metodach wyboru mostka, jednak te nie zostały przez nas przetestowane.
 
 \begin{listing}[H]
-\begin{minted}{kotlin}
+\begin{minted}[breaklines]{kotlin}
 return notLoadedAlreadyInConferenceInRegion(bridges, conferenceBridges, participantProperties, region)
             ?: notLoadedAlreadyInConferenceInRegionGroup(bridges, conferenceBridges, participantProperties, region)
             ?: notLoadedInRegion(bridges, conferenceBridges, participantProperties, region)
