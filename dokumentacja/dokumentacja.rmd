@@ -761,15 +761,16 @@ $ kubectl --namespace grafana port-forward $POD_NAME 3000
 
 > Uwaga! Wymaga to, abyśmy mieli dostęp do klastra z naszej maszyny.
 
-Przygotowany został panel przedstawiający zebrane metryki z Jitsi. Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
+Użyliśmy istniejącego już panelu (ang. dashboard) Grafany dla Jitsi: https://grafana.com/grafana/dashboards/12098-jitsi-meet/, przedstawiającego zebrane metryki z Jitsi.
+Poniżej zaprezentowano jak zaimportować panel w programie Grafana:
 
-TODO: folissa/sebsk - podać ten panel na enauczanie i opisać tutaj
+Należy pobrać plik JSON ze strony podanej powyżej.
 
 Aby zaimportować panel, wystarczy wejść do Grafana w zakładkę "Dashboards" oraz wybrać "New" po czym przejść do opcji "Import".
 
 ![](res/import-dashboard.png)
 
-Po przejściu do opcji "Import" wystarczy wkleić dołączony do dokumentacji panel oraz wcisnąć "Load".
+Po przejściu do opcji "Import" wystarczy wysłac plik JSON panelu oraz wcisnąć "Load".
 
 ![](res/import-view.png)
 
@@ -1025,7 +1026,7 @@ przy takim zużyciu zasobów.
 Przy tych wykresach warto zapamiętać zużycie CPU na poziomie 0.4, poziom stresu na poziomie 0.1 oraz
 bitrate na poziomie 4000 (pobieranie), przydadzą się do następnych wniosków.
 
-```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=4, fig.cap="Scenariusz 4 - 10 konferencji po 3 uczestników"}
 p1 <- plot_grid("./stress-results/single/30conf-3pers/CPU-data.csv",
                 title_override = "Zużycie CPU")
 p2 <- plot_grid("./stress-results/single/30conf-3pers/RAM-data.csv",
@@ -1194,7 +1195,7 @@ plot_enhanced("./stress-results/octo/3conf-10pers/RTT-data2.csv")
 Fortunnie, średnio RTT wynosi około 75ms. Ten jeden skok nie miał dużego wpływu na rozmowę.
 
 
-```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 30 konferencji po 3 uczestników"}
+```{r fig.pos="H", echo=FALSE, fig.width=12, fig.height=6, fig.cap="Scenariusz 4 - 10 konferencji po 3 uczestników"}
 p1 <- plot_grid("./stress-results/octo/30conf-3pers/CPU-data1.csv",
                 title_override = "Zużycie CPU (vb1)")
 p2 <- plot_grid("./stress-results/octo/30conf-3pers/RAM-data1.csv",
