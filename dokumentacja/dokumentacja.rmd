@@ -109,7 +109,7 @@ Pozostałe (z wyjątkiem pliku Util.kt który zawiera funkcje pomocniczne) są w
 \label{fig:bridge-selection-strategies}
 \end{figure}
 
-Kod odpowiedzialny za wybór mostka w przypadku tej funkcji składa się z wykorzystania kilku funkcji pomoczniczych, które starają się znaleźć najlepszy mostek dla użytkownika - funckje te są również wykorzystane w innych metodach wyboru mostka, jednak te nie zostały przez nas przetestowane.
+Kod odpowiedzialny za wybór mostka w przypadku tej funkcji składa się z wykorzystania kilku funkcji pomoczniczych, które starają się znaleźć najlepszy mostek dla użytkownika - funkcje te są również wykorzystane w innych metodach wyboru mostka, jednak te nie zostały przez nas przetestowane.
 
 \begin{listing}[H]
 \begin{minted}[breaklines]{kotlin}
@@ -1275,6 +1275,16 @@ W rysunku \@ref(fig:bitrate-upload-enhanced-4thscenario) został ukazany najmnie
 że przez wysokie zużycie Jitsi, próbowało ono dynamicznie zmniejszać oraz zwiększać rozdzielczość tak, aby konsekwentnie
 rozdzielić swoje zasoby pomiędzy wszystkie konferencje.
 
+Pomimo domyślnej konfiguracji, przy uruchamianiu została użyta wartość użycia strategii
+`SplitBridgeSelectionStrategy`, która nie jest zalecaną strategią do produkcyjnego użycia.
+Nie jesteśmy w stanie stwierdzić, dlaczego ta wartość jest używana mimo, że nie jest zdefiniowana
+ani w naszej konfiguracji, ani domyślnych wartościach Helm.
+Strategia ta powoduje przesyłanie każdej konferencji pomiędzy wszystkie videobridge. Dało nam to pewność,
+że korzystamy poprawnie z Octo, ale nie dało rezultatów, które moglibyśmy zauważyć realnie w świecie.
+
+Nie mniej, wyniki pokazują, jak Octo funkcjonuje, gdy mamy najgorszy możliwy scenariusz dla dwóch Videobridge.
+Mimo niefortunnego ustawienia, nie widzieliśmy żanych błędów funkcjonowania ani zauważalnych rzeczy, które
+mogłyby powodować złe subiektywne odczucie z wideokonferencji.
 
 <!--
 TODO: ilość konferenecji bitrate-upload-enhanced-4thscenario
